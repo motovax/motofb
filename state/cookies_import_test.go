@@ -1,8 +1,6 @@
 package state_test
 
 import (
-	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/motovax/motofb/state"
@@ -26,19 +24,3 @@ func TestCookieSnapshotFromJSON(t *testing.T) {
 	}
 }
 
-func TestCookieSnapshotFromFile(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "export.json")
-	if err := os.WriteFile(path, []byte(`[
-		{"name":"c_user","value":"42","path":"/"},
-		{"name":"xs","value":"tok","path":"/"}
-	]`), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	snap, err := state.CookieSnapshotFromFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, ok := snap["cookies"]; !ok {
-		t.Fatalf("missing cookies: %+v", snap)
-	}
-}

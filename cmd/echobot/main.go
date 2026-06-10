@@ -1,4 +1,12 @@
 // Echo bot example — replies in Messenger groups (not 1:1 DMs).
+//
+// First-time setup:
+//
+//	cat cookie-export.json | go run ./cmd/importcookies default
+//
+// Run:
+//
+//	go run ./cmd/echobot
 package main
 
 import (
@@ -13,16 +21,26 @@ import (
 )
 
 func main() {
-	const cookiePath = "cookies.json"
+	const (
+		clientID = "default"
+		dbPath   = "sessions.db"
+	)
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
-	client, err := motofb.NewFromCookieFile(ctx, cookiePath)
+	mgr, err := motofb.NewManagerWithSQLite(dbPath, nil)
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer client.Close()
+	defer func() {
+		_ = mgr.Close(context.Background(), true)
+	}()
+
+	client, err := mgr.RestoreClient(ctx, clientID)
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	client.On(events.Message, func(ctx context.Context, args ...any) error {
 		msg, ok := args[0].(models.Message)

@@ -2,22 +2,11 @@ package state
 
 import (
 	"encoding/json"
-	"os"
 
 	fberr "github.com/motovax/motofb/errors"
 )
 
 const cookieSnapshotVersion = 1
-
-// CookieSnapshotFromFile reads a browser cookie export and builds a storage snapshot.
-// The snapshot is stored in SQLite and used for session restore on later runs.
-func CookieSnapshotFromFile(path string) (map[string]any, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, fberr.Wrap("CookieSnapshotFromFile", "read file", err)
-	}
-	return CookieSnapshotFromJSON(data)
-}
 
 // CookieSnapshotFromJSON validates cookie JSON and returns a storage-ready snapshot.
 func CookieSnapshotFromJSON(data []byte) (map[string]any, error) {

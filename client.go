@@ -43,12 +43,11 @@ type Client struct {
 type Option func(*clientConfig)
 
 type clientConfig struct {
-	userAgent     string
-	proxyURL      string
-	log           *slog.Logger
-	online        bool
-	initialState  *state.State
-	cookiesPath   string
+	userAgent    string
+	proxyURL     string
+	log          *slog.Logger
+	online       bool
+	initialState *state.State
 }
 
 // WithUserAgent sets a custom browser user agent.
@@ -74,28 +73,6 @@ func WithOnline(online bool) Option {
 // WithInitialState restores a session without re-reading cookies.
 func WithInitialState(st *state.State) Option {
 	return func(c *clientConfig) { c.initialState = st }
-}
-
-// NewFromCookieFile authenticates using a browser cookie JSON export.
-func NewFromCookieFile(ctx context.Context, cookiePath string, opts ...Option) (*Client, error) {
-	cfg := clientConfig{log: slog.Default(), online: true, cookiesPath: cookiePath}
-	for _, o := range opts {
-		o(&cfg)
-	}
-	var st *state.State
-	var err error
-	if cfg.initialState != nil {
-		st = cfg.initialState
-	} else {
-		st, err = state.FromCookieFile(ctx, cookiePath, state.Options{
-			UserAgent: cfg.userAgent,
-			ProxyURL:  cfg.proxyURL,
-		})
-		if err != nil {
-			return nil, err
-		}
-	}
-	return newClient(st, cfg), nil
 }
 
 func newClient(st *state.State, cfg clientConfig) *Client {

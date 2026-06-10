@@ -68,18 +68,15 @@ func TestImportCookiesSQLite(t *testing.T) {
 	ctx := context.Background()
 	dir := t.TempDir()
 	dbPath := filepath.Join(dir, "sessions.db")
-	cookiePath := filepath.Join(dir, "export.json")
-	if err := os.WriteFile(cookiePath, []byte(`[
+	cookieJSON := []byte(`[
 		{"name":"c_user","value":"99","path":"/"},
 		{"name":"xs","value":"tok","path":"/"}
-	]`), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	]`)
 	mgr, err := NewManagerWithSQLite(dbPath, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := mgr.ImportCookies(ctx, "acc1", cookiePath); err != nil {
+	if err := mgr.ImportCookies(ctx, "acc1", cookieJSON); err != nil {
 		t.Fatal(err)
 	}
 	ids, err := mgr.StoredClientIDs(ctx)
@@ -88,31 +85,12 @@ func TestImportCookiesSQLite(t *testing.T) {
 	}
 }
 
-func TestLoadAccountSpecsRestoreOnly(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "accounts.json")
-	if err := os.WriteFile(path, []byte(`{
-		"accounts": [
-			{"id": "a", "restore": true},
-			{"id": "b", "cookies": "b.json"}
-		]
-	}`), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	specs, err := LoadAccountSpecs(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(specs) != 2 || specs[0].CookiesPath != "" || !specs[0].Restore {
-		t.Fatalf("unexpected specs: %+v", specs)
-	}
-}
-
 func TestLoadAccountSpecs(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "accounts.json")
 	if err := os.WriteFile(path, []byte(`{
 		"accounts": [
-			{"id": "a", "cookies": "a.json", "restore": true},
-			{"id": "b", "cookies": "b.json"}
+			{"id": "a"},
+			{"id": "b"}
 		]
 	}`), 0o600); err != nil {
 		t.Fatal(err)
@@ -121,7 +99,7 @@ func TestLoadAccountSpecs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(specs) != 2 || specs[0].ID != "a" || !specs[0].Restore {
+	if len(specs) != 2 || specs[0].ID != "a" || specs[1].ID != "b" {
 		t.Fatalf("unexpected specs: %+v", specs)
 	}
 }

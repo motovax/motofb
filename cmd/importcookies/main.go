@@ -1,17 +1,18 @@
-// Import browser cookie exports into SQLite session storage.
+// Import browser cookie JSON from stdin into SQLite session storage.
 //
 // Usage:
 //
-//	go run ./cmd/importcookies <client-id> <browser-export.json> [sessions.db]
+//	go run ./cmd/importcookies <client-id> [sessions.db] < cookie-json
 //
 // Example:
 //
-//	go run ./cmd/importcookies shop-a shop-a-cookies.json
+//	cat cookies-export.json | go run ./cmd/importcookies shop-a
 package main
 
 import (
 	"context"
 	"fmt"
+	"io"
 	"log"
 	"os"
 
@@ -19,15 +20,22 @@ import (
 )
 
 func main() {
-	if len(os.Args) < 3 {
-		fmt.Fprintf(os.Stderr, "usage: importcookies <client-id> <browser-export.json> [sessions.db]\n")
+	if len(os.Args) < 2 {
+		fmt.Fprintf(os.Stderr, "usage: importcookies <client-id> [sessions.db] < cookie-json\n")
 		os.Exit(2)
 	}
 	clientID := os.Args[1]
-	cookieFile := os.Args[2]
 	dbPath := "sessions.db"
-	if len(os.Args) > 3 {
-		dbPath = os.Args[3]
+	if len(os.Args) > 2 {
+		dbPath = os.Args[2]
+	}
+
+	data, err := io.ReadAll(os.Stdin)
+	if err != nil {
+		log.Fatal(err)
+	}
+	if len(data) == 0 {
+		log.Fatal("no cookie JSON on stdin")
 	}
 
 	mgr, err := motofb.NewManagerWithSQLite(dbPath, nil)
@@ -38,7 +46,7 @@ func main() {
 		_ = mgr.Close(context.Background(), false)
 	}()
 
-	if err := mgr.ImportCookies(context.Background(), clientID, cookieFile); err != nil {
+	if err := mgr.ImportCookies(context.Background(), clientID, data); err != nil {
 		log.Fatal(err)
 	}
 	log.Printf("imported cookies for %q into %s", clientID, dbPath)

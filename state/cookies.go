@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
-	"os"
 	"strings"
 	"time"
 
@@ -31,15 +30,6 @@ var cookieTargets = []struct {
 	{"https://www.facebook.com", ".facebook.com"},
 	{"https://www.messenger.com", ".messenger.com"},
 	{"https://rupload-ccu1-2.up.facebook.com", "up.facebook.com"},
-}
-
-// LoadCookiesFromFile reads a JSON cookie export and populates a jar.
-func LoadCookiesFromFile(path string) (http.CookieJar, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, fberr.Wrap("LoadCookiesFromFile", "read cookies file", err)
-	}
-	return LoadCookiesFromJSON(data)
 }
 
 // LoadCookiesFromJSON parses cookie JSON bytes into a jar.

@@ -159,24 +159,24 @@ func (m *Manager) GetClient(clientID string) (*Client, error) {
 	return c, nil
 }
 
-// ImportCookies reads a browser cookie export and stores it in SQLite for clientID.
-// Use this once per account; later runs load cookies from the database via restore:true.
-func (m *Manager) ImportCookies(ctx context.Context, clientID, browserExportPath string) error {
+// ImportCookies validates browser cookie JSON and stores it in SQLite for clientID.
+// Use this once per account; later runs load cookies from the database.
+func (m *Manager) ImportCookies(ctx context.Context, clientID string, cookieJSON []byte) error {
 	if m.storage == nil {
 		return fberr.New("ImportCookies", "no session storage configured")
 	}
-	snap, err := state.CookieSnapshotFromFile(browserExportPath)
+	snap, err := state.CookieSnapshotFromJSON(cookieJSON)
 	if err != nil {
 		return err
 	}
 	return m.storage.Save(ctx, clientID, snap)
 }
 
-// AddClient registers a new account from a cookies file or from cookies already in SQLite.
-func (m *Manager) AddClient(ctx context.Context, clientID, cookiesPath string, opts ...Option) (*Client, error) {
+// RestoreClient loads cookies from SQLite and registers the account.
+func (m *Manager) RestoreClient(ctx context.Context, clientID string, opts ...Option) (*Client, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	c, err := m.registerClient(ctx, clientID, cookiesPath, opts...)
+	c, err := m.registerClient(ctx, clientID, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -184,32 +184,11 @@ func (m *Manager) AddClient(ctx context.Context, clientID, cookiesPath string, o
 	return c, nil
 }
 
-// RestoreClient loads cookies from SQLite when available, otherwise falls back to cookiesPath.
-func (m *Manager) RestoreClient(ctx context.Context, clientID, cookiesPath string, opts ...Option) (*Client, error) {
-	if m.storage != nil {
-		snap, err := m.storage.Load(ctx, clientID)
-		if err != nil {
-			return nil, err
-		}
-		if snap != nil {
-			if cookies, ok := snap["cookies"].([]any); ok && len(cookies) > 0 {
-				records := cookieRecordsFromSnap(cookies)
-				st, err := state.FromCookieRecords(ctx, records, state.Options{})
-				if err == nil {
-					opts = append(opts, WithInitialState(st))
-					cookiesPath = ""
-				}
-			}
-		}
-	}
-	return m.AddClient(ctx, clientID, cookiesPath, opts...)
-}
-
-func (m *Manager) registerClient(ctx context.Context, clientID, cookiesPath string, opts ...Option) (*Client, error) {
+func (m *Manager) registerClient(ctx context.Context, clientID string, opts ...Option) (*Client, error) {
 	if _, ok := m.Clients[clientID]; ok {
-		return nil, fberr.New("AddClient", fmt.Sprintf("client id already registered: %s", clientID))
+		return nil, fberr.New("RestoreClient", fmt.Sprintf("client id already registered: %s", clientID))
 	}
-	cfg := clientConfig{log: m.log, online: true, cookiesPath: cookiesPath}
+	cfg := clientConfig{log: m.log, online: true}
 	for _, o := range opts {
 		o(&cfg)
 	}
@@ -218,22 +197,39 @@ func (m *Manager) registerClient(ctx context.Context, clientID, cookiesPath stri
 	switch {
 	case cfg.initialState != nil:
 		st = cfg.initialState
-	case cookiesPath != "":
-		st, err = state.FromCookieFile(ctx, cookiesPath, state.Options{
-			UserAgent: cfg.userAgent,
-			ProxyURL:  cfg.proxyURL,
-		})
+	default:
+		st, err = m.stateFromStorage(ctx, clientID, cfg)
 		if err != nil {
 			return nil, err
 		}
-	default:
-		return nil, fberr.New("AddClient", "no cookies in SQLite and no cookies file for client id: "+clientID)
 	}
 	c := newClient(st, cfg)
 	c.managerID = clientID
 	c.managerRoute = m.routeEvent
 	m.Clients[clientID] = c
 	return c, nil
+}
+
+func (m *Manager) stateFromStorage(ctx context.Context, clientID string, cfg clientConfig) (*state.State, error) {
+	if m.storage == nil {
+		return nil, fberr.New("RestoreClient", "no session storage configured")
+	}
+	snap, err := m.storage.Load(ctx, clientID)
+	if err != nil {
+		return nil, err
+	}
+	if snap == nil {
+		return nil, fberr.New("RestoreClient", "no session in SQLite for client id: "+clientID)
+	}
+	cookies, ok := snap["cookies"].([]any)
+	if !ok || len(cookies) == 0 {
+		return nil, fberr.New("RestoreClient", "no cookies in SQLite snapshot for client id: "+clientID)
+	}
+	records := cookieRecordsFromSnap(cookies)
+	return state.FromCookieRecords(ctx, records, state.Options{
+		UserAgent: cfg.userAgent,
+		ProxyURL:  cfg.proxyURL,
+	})
 }
 
 func (m *Manager) persistSession(ctx context.Context, clientID string, c *Client) {
@@ -249,13 +245,7 @@ func (m *Manager) persistSession(ctx context.Context, clientID string, c *Client
 func (m *Manager) AddAccounts(ctx context.Context, accounts ...AccountSpec) error {
 	var errs []error
 	for _, spec := range accounts {
-		var c *Client
-		var err error
-		if spec.Restore {
-			c, err = m.RestoreClient(ctx, spec.ID, spec.CookiesPath, spec.options()...)
-		} else {
-			c, err = m.AddClient(ctx, spec.ID, spec.CookiesPath, spec.options()...)
-		}
+		c, err := m.RestoreClient(ctx, spec.ID, spec.options()...)
 		if err != nil {
 			errs = append(errs, fmt.Errorf("%s: %w", spec.ID, err))
 			continue
@@ -286,9 +276,8 @@ func (m *Manager) StoredClientIDs(ctx context.Context) ([]string, error) {
 	return lister.List(ctx)
 }
 
-// RestoreAll registers every client id found in storage. cookiesFallback is used when
-// a snapshot cannot be restored (optional; pass "" when snapshots are self-contained).
-func (m *Manager) RestoreAll(ctx context.Context, cookiesFallback string) error {
+// RestoreAll registers every client id found in storage.
+func (m *Manager) RestoreAll(ctx context.Context) error {
 	ids, err := m.StoredClientIDs(ctx)
 	if err != nil {
 		return err
@@ -301,7 +290,7 @@ func (m *Manager) RestoreAll(ctx context.Context, cookiesFallback string) error 
 		if exists {
 			continue
 		}
-		if _, err := m.RestoreClient(ctx, id, cookiesFallback); err != nil {
+		if _, err := m.RestoreClient(ctx, id); err != nil {
 			errs = append(errs, fmt.Errorf("%s: %w", id, err))
 		}
 	}

@@ -31,16 +31,16 @@ go get github.com/motovax/motofb
 
 ## Cookies and SQLite
 
-Cookie data is stored in **`sessions.db`** (SQLite), not loose JSON files after the first import.
+Cookie data lives in **`sessions.db`** (SQLite). Export from the browser once, pipe JSON into SQLite, then run bots.
 
 1. Export cookies from the browser — full guide: **[docs/COOKIES.md](docs/COOKIES.md)**
 2. Import once per account:
 
 ```bash
-go run ./cmd/importcookies shop-a shop-a-cookies.json
+cat cookie-export.json | go run ./cmd/importcookies shop-a
 ```
 
-3. Run multi-account bot (loads cookies from SQLite):
+3. Run multi-account bot:
 
 ```bash
 cp accounts.json.example accounts.json
@@ -50,8 +50,9 @@ go run ./cmd/multibot
 ## Quick start (single account)
 
 ```go
-client, err := motofb.NewFromCookieFile(ctx, "cookies.json")
-defer client.Close()
+mgr, _ := motofb.NewManagerWithSQLite("sessions.db", nil)
+client, _ := mgr.RestoreClient(ctx, "default")
+defer mgr.Close(ctx, true)
 
 client.On(events.Message, func(ctx context.Context, args ...any) error {
     msg := args[0].(models.Message)
@@ -64,9 +65,10 @@ client.On(events.Message, func(ctx context.Context, args ...any) error {
 client.Run(ctx) // blocks until SIGINT
 ```
 
-Echo bot (uses `cookies.json` in the working directory):
+Echo bot:
 
 ```bash
+cat cookie-export.json | go run ./cmd/importcookies default
 go run ./cmd/echobot
 ```
 
@@ -75,10 +77,9 @@ go run ./cmd/echobot
 ```go
 mgr, _ := motofb.NewManagerWithSQLite("sessions.db", nil)
 
-// First time only — import browser exports into SQLite:
-_ = mgr.ImportCookies(ctx, "shop-a", "shop-a-cookies.json")
+// First time only — import browser JSON into SQLite:
+_ = mgr.ImportCookies(ctx, "shop-a", cookieJSON)
 
-// Register accounts (cookies loaded from SQLite when restore:true):
 _ = mgr.AddAccountsFromFile(ctx, "accounts.json")
 
 mgr.On(motofb.AllClients, events.Message, func(ctx context.Context, clientID string, args ...any) error {
@@ -92,13 +93,13 @@ _ = mgr.Run(ctx)
 defer mgr.Close(ctx, true) // persist refreshed cookies to SQLite
 ```
 
-`accounts.json` after cookies are imported:
+`accounts.json`:
 
 ```json
 {
   "accounts": [
-    {"id": "shop-a", "restore": true},
-    {"id": "shop-b", "restore": true}
+    {"id": "shop-a"},
+    {"id": "shop-b"}
   ]
 }
 ```

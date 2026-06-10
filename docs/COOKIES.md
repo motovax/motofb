@@ -1,6 +1,6 @@
 # Facebook cookie setup for motofb
 
-motofb authenticates with **browser cookies**, not email/password. Cookie data is stored in **SQLite** (`sessions.db`) so you only export from the browser once per account.
+motofb authenticates with **browser cookies**, not email/password. Cookie data is stored in **SQLite** (`sessions.db`) — import once per account, then all bots load from the database.
 
 ## Required cookies
 
@@ -21,7 +21,7 @@ motofb validates that `c_user` is present when importing. Missing or expired coo
 2. Install **[Cookie-Editor](https://cookie-editor.cgagnier.ca/)** (or any extension that exports JSON in fbstate/C3C format).
 3. Open Cookie-Editor on `facebook.com`.
 4. Click **Export** → choose **JSON** format.
-5. Save the file (e.g. `shop-a-cookies.json`).
+5. Copy the JSON to your clipboard, or save it temporarily outside the repo.
 
 ### Export format
 
@@ -39,21 +39,26 @@ Some exporters use `"key"` instead of `"name"` — both work.
 
 ## Store cookies in SQLite
 
-Import once per account. Cookies are written to `sessions.db` and reused on every subsequent run.
+Pipe the exported JSON into `importcookies`. Nothing is written to disk except `sessions.db`.
 
 ```bash
-# Import browser export into SQLite (default db: sessions.db)
-go run ./cmd/importcookies shop-a shop-a-cookies.json
+# Paste JSON into stdin (or pipe from a temporary export)
+cat <<'EOF' | go run ./cmd/importcookies shop-a
+[
+  {"name": "c_user", "value": "100001234567890", "path": "/"},
+  {"name": "xs", "value": "…", "path": "/"}
+]
+EOF
 
 # Multiple accounts
-go run ./cmd/importcookies shop-b shop-b-cookies.json
+cat cookie-export-b.json | go run ./cmd/importcookies shop-b
 ```
 
 Or from Go:
 
 ```go
 mgr, _ := motofb.NewManagerWithSQLite("sessions.db", nil)
-err := mgr.ImportCookies(ctx, "shop-a", "shop-a-cookies.json")
+err := mgr.ImportCookies(ctx, "shop-a", cookieJSON)
 ```
 
 ### What gets stored
@@ -73,17 +78,17 @@ After the bot runs and refreshes tokens, `snapshot` is updated with the latest c
 **First time (import cookies):**
 
 ```bash
-go run ./cmd/importcookies shop-a shop-a-cookies.json
-go run ./cmd/importcookies shop-b shop-b-cookies.json
+cat shop-a-export.json | go run ./cmd/importcookies shop-a
+cat shop-b-export.json | go run ./cmd/importcookies shop-b
 ```
 
-**`accounts.json`** (no cookie files needed after import):
+**`accounts.json`:**
 
 ```json
 {
   "accounts": [
-    {"id": "shop-a", "restore": true},
-    {"id": "shop-b", "restore": true}
+    {"id": "shop-a"},
+    {"id": "shop-b"}
   ]
 }
 ```
@@ -98,14 +103,10 @@ motofb loads cookies from `sessions.db`, fetches fresh tokens from Facebook HTML
 
 ## Single-account (echobot)
 
-For quick testing you can still point at a cookie file directly:
-
 ```bash
-cp shop-a-cookies.json cookies.json
+cat cookie-export.json | go run ./cmd/importcookies default
 go run ./cmd/echobot
 ```
-
-For production, prefer importing into SQLite and using the Manager.
 
 ## Refreshing cookies
 
@@ -113,14 +114,14 @@ Facebook sessions expire. When login fails:
 
 1. Log in again in the browser (same account).
 2. Re-export cookies with Cookie-Editor.
-3. Re-import: `go run ./cmd/importcookies shop-a shop-a-cookies.json`
+3. Re-import: `cat new-export.json | go run ./cmd/importcookies shop-a`
 
 The import overwrites the previous row for that `client_id` in SQLite.
 
 ## Security
 
-- Cookie files and `sessions.db` are **full account credentials**. Treat them like passwords.
-- Do not commit cookies or `sessions.db` to git (add to `.gitignore`).
+- `sessions.db` holds **full account credentials**. Treat it like a password.
+- Do not commit `sessions.db` to git (add to `.gitignore`).
 - Use a dedicated Facebook account for automation; unofficial API use can trigger bans.
 - Restrict file permissions: `chmod 600 sessions.db` on shared servers.
 
@@ -131,9 +132,10 @@ The import overwrites the previous row for that `client_id` in SQLite.
 | `c_user cookie not found` | Re-export while logged in to facebook.com |
 | `authentication failed` / redirect loop | Cookies expired — re-export and re-import |
 | Account works in browser but not bot | Export from `www.facebook.com`, not a mobile subdomain |
+| `no session in SQLite` | Run `importcookies` for that client id first |
 | 1:1 Messenger DMs don't work | Expected — E2E encryption; use **group chats** only |
 
 ## Firefox
 
 1. Install Cookie-Editor for Firefox.
-2. Same steps: log in → open extension on facebook.com → Export JSON → import with `importcookies`.
+2. Same steps: log in → open extension on facebook.com → Export JSON → pipe into `importcookies`.

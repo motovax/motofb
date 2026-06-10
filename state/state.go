@@ -57,15 +57,6 @@ type Options struct {
 	HTTP      *http.Client
 }
 
-// FromCookieFile loads cookies from path and authenticates against facebook.com.
-func FromCookieFile(ctx context.Context, path string, opts Options) (*State, error) {
-	jar, err := LoadCookiesFromFile(path)
-	if err != nil {
-		return nil, err
-	}
-	return Login(ctx, jar, opts)
-}
-
 // FromCookieRecords restores state from serialized cookie records.
 func FromCookieRecords(ctx context.Context, records []CookieRecord, opts Options) (*State, error) {
 	jar, err := CookiesToJar(records)

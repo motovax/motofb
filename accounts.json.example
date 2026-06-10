@@ -1,12 +1,10 @@
 {
   "accounts": [
     {
-      "id": "shop-a",
-      "restore": true
+      "id": "shop-a"
     },
     {
-      "id": "shop-b",
-      "restore": true
+      "id": "shop-b"
     }
   ]
 }

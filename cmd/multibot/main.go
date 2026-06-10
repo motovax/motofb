@@ -2,11 +2,11 @@
 //
 // First-time setup (per account):
 //
-//	go run ./cmd/importcookies shop-a shop-a-cookies.json
+//	cat cookie-export.json | go run ./cmd/importcookies shop-a
 //
-// accounts.json (cookies live in sessions.db after import):
+// accounts.json:
 //
-//	{"accounts": [{"id": "shop-a", "restore": true}]}
+//	{"accounts": [{"id": "shop-a"}]}
 //
 // Run:
 //

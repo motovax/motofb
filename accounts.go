@@ -9,13 +9,12 @@ import (
 )
 
 // AccountSpec describes one managed Facebook account.
+// Sessions are loaded from SQLite; import cookies first with ImportCookies.
 type AccountSpec struct {
-	ID          string   `json:"id"`
-	CookiesPath string   `json:"cookies"`
-	Restore     bool     `json:"restore,omitempty"`
-	UserAgent   string   `json:"user_agent,omitempty"`
-	ProxyURL    string   `json:"proxy,omitempty"`
-	Online      *bool    `json:"online,omitempty"`
+	ID        string `json:"id"`
+	UserAgent string `json:"user_agent,omitempty"`
+	ProxyURL  string `json:"proxy,omitempty"`
+	Online    *bool  `json:"online,omitempty"`
 }
 
 func (a AccountSpec) options() []Option {
@@ -53,9 +52,6 @@ func LoadAccountSpecs(path string) ([]AccountSpec, error) {
 	for i, a := range file.Accounts {
 		if a.ID == "" {
 			return nil, fberr.New("LoadAccountSpecs", fmt.Sprintf("accounts[%d]: missing id", i))
-		}
-		if a.CookiesPath == "" && !a.Restore {
-			return nil, fberr.New("LoadAccountSpecs", fmt.Sprintf("accounts[%d]: set cookies path or restore:true with cookies in SQLite", i))
 		}
 	}
 	return file.Accounts, nil
