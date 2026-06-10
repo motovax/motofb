@@ -15,7 +15,7 @@ Go port of [fbchat-muqit](https://github.com/togashigreat/fbchat-muqit) v1.2.2 â
 | Delta/event parser (`/t_ms`, typing, presence, legacy_web) | Done |
 | Messenger: send, react, unsend, threads, users, files | Done |
 | Facebook: posts, photos, friend requests, reactions | Done |
-| `ClientManager` multi-account + JSON session storage | Done |
+| `ClientManager` multi-account + SQLite session storage | Done |
 
 ## Requirements
 
@@ -64,7 +64,7 @@ MOTOFB_COOKIES_FILE=cookies.json go run ./cmd/echobot
 ### Multi-account
 
 ```go
-mgr := motofb.NewManagerWithDir("./sessions", nil)
+mgr, _ := motofb.NewManagerWithSQLite("sessions.db", nil)
 _ = mgr.AddAccountsFromFile(ctx, "accounts.json") // or mgr.AddAccounts(ctx, specs...)
 
 mgr.On(motofb.AllClients, events.Message, func(ctx context.Context, clientID string, args ...any) error {
@@ -89,7 +89,9 @@ defer mgr.Close(ctx, true) // persist cookie snapshots
 }
 ```
 
-Example: `MOTOFB_ACCOUNTS_FILE=accounts.json go run ./cmd/multibot`
+Example: `MOTOFB_ACCOUNTS_FILE=accounts.json MOTOFB_SESSIONS_DB=sessions.db go run ./cmd/multibot`
+
+SQLite stores one row per account (`client_id`, cookie snapshot JSON). JSON dir and Redis backends remain available via `NewManagerWithDir` / `NewManagerWithRedis`.
 
 See `docs/plans/fbchat-muqit-go-api-mapping.md` in the MotoVax monorepo for the full Python â†’ Go mapping.
 

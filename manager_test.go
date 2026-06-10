@@ -83,10 +83,14 @@ func TestLoadAccountSpecs(t *testing.T) {
 	}
 }
 
-func TestJSONSessionStorageRoundtrip(t *testing.T) {
-	dir := t.TempDir()
-	store := &storage.JSONStore{Directory: dir}
+func TestSQLiteSessionStorageRoundtrip(t *testing.T) {
 	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "sessions.db")
+	store, err := storage.OpenSQLite(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
 	snap := map[string]any{
 		"version": 1,
 		"cookies": []any{map[string]any{"name": "c_user", "value": "1", "path": "/"}},
@@ -100,10 +104,6 @@ func TestJSONSessionStorageRoundtrip(t *testing.T) {
 	}
 	if loaded["version"] != float64(1) {
 		t.Fatalf("unexpected snapshot: %+v", loaded)
-	}
-	path := filepath.Join(dir, "c1.json")
-	if _, err := os.Stat(path); err != nil {
-		t.Fatalf("expected persisted json file: %v", err)
 	}
 }
 

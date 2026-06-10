@@ -62,3 +62,16 @@ func (r *RedisStore) Load(ctx context.Context, clientID string) (map[string]any,
 func (r *RedisStore) Delete(ctx context.Context, clientID string) error {
 	return r.Client.Del(ctx, r.key(clientID)).Err()
 }
+
+// List returns client ids with stored sessions under the configured prefix.
+func (r *RedisStore) List(ctx context.Context) ([]string, error) {
+	var ids []string
+	iter := r.Client.Scan(ctx, 0, r.Prefix+"*", 0).Iterator()
+	for iter.Next(ctx) {
+		key := iter.Val()
+		if len(key) > len(r.Prefix) {
+			ids = append(ids, key[len(r.Prefix):])
+		}
+	}
+	return ids, iter.Err()
+}

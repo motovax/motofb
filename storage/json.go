@@ -68,3 +68,26 @@ func (s *JSONStore) Delete(ctx context.Context, clientID string) error {
 	}
 	return err
 }
+
+// List returns client ids that have stored JSON session files.
+func (s *JSONStore) List(ctx context.Context) ([]string, error) {
+	_ = ctx
+	entries, err := os.ReadDir(s.Directory)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	var ids []string
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		name := e.Name()
+		if len(name) > 5 && name[len(name)-5:] == ".json" {
+			ids = append(ids, name[:len(name)-5])
+		}
+	}
+	return ids, nil
+}

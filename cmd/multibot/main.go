@@ -11,7 +11,7 @@
 //
 // Run:
 //
-//	MOTOFB_ACCOUNTS_FILE=accounts.json go run ./cmd/multibot
+//	MOTOFB_ACCOUNTS_FILE=accounts.json MOTOFB_SESSIONS_DB=sessions.db go run ./cmd/multibot
 package main
 
 import (
@@ -31,15 +31,18 @@ func main() {
 	if accountsFile == "" {
 		accountsFile = "accounts.json"
 	}
-	sessionsDir := os.Getenv("MOTOFB_SESSIONS_DIR")
-	if sessionsDir == "" {
-		sessionsDir = "./sessions"
+	dbPath := os.Getenv("MOTOFB_SESSIONS_DB")
+	if dbPath == "" {
+		dbPath = "sessions.db"
 	}
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
-	mgr := motofb.NewManagerWithDir(sessionsDir, nil)
+	mgr, err := motofb.NewManagerWithSQLite(dbPath, nil)
+	if err != nil {
+		log.Fatal(err)
+	}
 	if err := mgr.AddAccountsFromFile(ctx, accountsFile); err != nil {
 		log.Fatal(err)
 	}

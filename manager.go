@@ -55,6 +55,15 @@ func NewManager(store storage.Store, log *slog.Logger) *Manager {
 	}
 }
 
+// NewManagerWithSQLite uses SQLite session storage (recommended for multi-account).
+func NewManagerWithSQLite(dbPath string, log *slog.Logger) (*Manager, error) {
+	store, err := storage.OpenSQLite(dbPath)
+	if err != nil {
+		return nil, err
+	}
+	return NewManager(store, log), nil
+}
+
 // NewManagerWithDir uses JSON file storage under dir (one snapshot per client id).
 func NewManagerWithDir(dir string, log *slog.Logger) *Manager {
 	return NewManager(&storage.JSONStore{Directory: dir}, log)
@@ -231,6 +240,40 @@ func (m *Manager) AddAccountsFromFile(ctx context.Context, path string) error {
 	return m.AddAccounts(ctx, specs...)
 }
 
+// StoredClientIDs returns client ids with persisted sessions when storage supports listing.
+func (m *Manager) StoredClientIDs(ctx context.Context) ([]string, error) {
+	if m.storage == nil {
+		return nil, nil
+	}
+	lister, ok := m.storage.(storage.Lister)
+	if !ok {
+		return nil, fberr.New("StoredClientIDs", "storage does not support listing sessions")
+	}
+	return lister.List(ctx)
+}
+
+// RestoreAll registers every client id found in storage. cookiesFallback is used when
+// a snapshot cannot be restored (optional; pass "" when snapshots are self-contained).
+func (m *Manager) RestoreAll(ctx context.Context, cookiesFallback string) error {
+	ids, err := m.StoredClientIDs(ctx)
+	if err != nil {
+		return err
+	}
+	var errs []error
+	for _, id := range ids {
+		m.mu.RLock()
+		_, exists := m.Clients[id]
+		m.mu.RUnlock()
+		if exists {
+			continue
+		}
+		if _, err := m.RestoreClient(ctx, id, cookiesFallback); err != nil {
+			errs = append(errs, fmt.Errorf("%s: %w", id, err))
+		}
+	}
+	return errors.Join(errs...)
+}
+
 func cookieRecordsFromSnap(items []any) []state.CookieRecord {
 	out := make([]state.CookieRecord, 0, len(items))
 	for _, item := range items {
@@ -345,6 +388,11 @@ func (m *Manager) Close(ctx context.Context, persist bool) error {
 	var errs []error
 	for _, id := range m.ClientIDs() {
 		if err := m.RemoveClient(ctx, id, false); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	if closer, ok := m.storage.(interface{ Close() error }); ok {
+		if err := closer.Close(); err != nil {
 			errs = append(errs, err)
 		}
 	}
