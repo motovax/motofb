@@ -80,11 +80,12 @@ type PokeNotification struct {
 
 // PageNotification for page inbox.
 type PageNotification struct {
-	SenderID  string
-	PageID    string
-	PageName  string
-	MessageID string
-	Text      string
+	SenderID  string `json:"senderId"`
+	PageID    string `json:"pageId"`
+	PageName  string `json:"pageName"`
+	MessageID string `json:"messageId"`
+	Title     string `json:"title"`
+	Text      string `json:"body"`
 }
 
 // Theme for thread themes.
@@ -96,8 +97,13 @@ type Theme struct {
 
 // Thread action deltas (subset — extend as needed).
 type AdminAdded struct {
-	AddedAdmin string
-	ThreadType ThreadType
+	AddedAdmin string `json:"TARGET_ID"`
+	ThreadType string `json:"THREAD_CATEGORY"`
+}
+
+// JoinableMode is group link joinability settings.
+type JoinableMode struct {
+	Mode string `json:"mode"`
 }
 
 type AdminRemoved struct {
@@ -134,42 +140,42 @@ type ThreadName struct {
 }
 
 type ThreadTheme struct {
-	ThemeID    int64
-	ThemeName  string
-	ThemeEmoji string
-	ThemeColor string
+	ThemeID    string `json:"theme_id"`
+	ThemeName  string `json:"theme_name_with_subtitle"`
+	ThemeEmoji string `json:"theme_emoji"`
+	ThemeColor string `json:"theme_color"`
 }
 
 type ThreadEmoji struct {
-	Emoji    string
-	EmojiURL string
+	Emoji    string `json:"thread_quick_reaction_emoji"`
+	EmojiURL string `json:"thread_quick_reaction_emoji_url"`
 }
 
 type ThreadNickname struct {
-	Nickname      string
-	ParticipantID string
+	Nickname      string `json:"nickname"`
+	ParticipantID string `json:"participant_id"`
 }
 
 type ThreadMagicWord struct {
-	MagicWord              string
-	Emoji                  string
-	NewMagicWordCount      string
-	RemovedMagicWordCount  string
-	ThemeName              string
+	MagicWord             string `json:"magic_word"`
+	Emoji                 string `json:"emoji_effect"`
+	NewMagicWordCount     string `json:"new_magic_word_count"`
+	RemovedMagicWordCount string `json:"removed_magic_word_count"`
+	ThemeName             string `json:"theme_name"`
 }
 
 type ThreadMessagePin struct {
-	MessageID string
+	MessageID string `json:"pinned_message_id"`
 }
 
 type ThreadMessageUnpin struct {
-	MessageID string
+	MessageID string `json:"pinned_message_id"`
 }
 
 type ThreadMessageSharing struct {
-	Mode       string
-	SenderName string
-	SenderID   string
+	Mode       string `json:"limit_sharing_type"`
+	SenderName string `json:"sender_name"`
+	SenderID   string `json:"sender_id"`
 }
 
 type ThreadMuteSettings struct {
@@ -200,9 +206,12 @@ type ThreadDelete struct {
 }
 
 type ChangeViewerStatus struct {
-	UserID              string
-	ThreadID            string
-	CanReply            bool
-	IsMessengerBlocked  bool
-	IsFacebookBlocked   bool
+	UserID                    string `json:"actorFbid"`
+	ThreadID                  string `json:"threadKey"`
+	CanReply                  bool   `json:"canViewerReply"`
+	Reason                    int    `json:"reason"`
+	IsMessengerBlocked        *bool  `json:"isMsgBlockedByViewer"`
+	MessengerBlockedTimestamp *int64 `json:"isMsgBlockedTimestamp"`
+	IsFacebookBlocked         *bool  `json:"isFBBlockedByViewer"`
+	FacebookBlockedTimestamp  *int64 `json:"isFBBlockedTimestamp"`
 }

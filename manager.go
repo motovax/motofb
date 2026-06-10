@@ -47,6 +47,15 @@ func NewManagerWithDir(dir string, log *slog.Logger) *Manager {
 	return NewManager(&storage.JSONStore{Directory: dir}, log)
 }
 
+// NewManagerWithRedis uses Redis-backed session storage.
+func NewManagerWithRedis(redisURL, keyPrefix string, log *slog.Logger) (*Manager, error) {
+	store, err := storage.NewRedisStore(redisURL, keyPrefix)
+	if err != nil {
+		return nil, err
+	}
+	return NewManager(store, log), nil
+}
+
 // On registers a manager-scoped handler for a specific client id.
 func (m *Manager) On(clientID string, event events.Type, handler events.Handler) {
 	m.mu.Lock()

@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	fberr "github.com/motovax/motofb/errors"
@@ -42,6 +43,11 @@ type State struct {
 	LoggedIn   bool
 
 	gql *graphql.Processor
+
+	autoRefreshMu      sync.Mutex
+	autoRefreshEnabled bool
+	refreshInterval    time.Duration
+	autoRefreshStop    chan struct{}
 }
 
 // Options configures State construction.
@@ -239,6 +245,16 @@ func (s *State) BuildHeaders(rawURL, requestType string, graphqlFriendlyName str
 
 // Get performs an authenticated GET and decodes JSON.
 func (s *State) Get(ctx context.Context, rawURL string, params map[string]string) (map[string]any, error) {
+	raw, err := s.withRetry(ctx, 3, func() (any, error) {
+		return s.getOnce(ctx, rawURL, params)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return raw.(map[string]any), nil
+}
+
+func (s *State) getOnce(ctx context.Context, rawURL string, params map[string]string) (map[string]any, error) {
 	fullURL := internal.PrefixURL(rawURL, s.Host)
 	q := s.NextReqParams()
 	for k, v := range params {
@@ -291,6 +307,12 @@ func (s *State) Get(ctx context.Context, rawURL string, params map[string]string
 
 // Post performs an authenticated POST.
 func (s *State) Post(ctx context.Context, rawURL string, data map[string]string, asGraphQL bool) (any, error) {
+	return s.withRetry(ctx, 3, func() (any, error) {
+		return s.postOnce(ctx, rawURL, data, asGraphQL)
+	})
+}
+
+func (s *State) postOnce(ctx context.Context, rawURL string, data map[string]string, asGraphQL bool) (any, error) {
 	fullURL := internal.PrefixURL(rawURL, s.Host)
 	params := s.NextReqParams()
 	form := url.Values{}
@@ -390,6 +412,7 @@ func (s *State) Refresh(ctx context.Context) error {
 
 // Close releases HTTP resources. The default client needs no action.
 func (s *State) Close() error {
+	s.DisableAutoRefresh()
 	s.LoggedIn = false
 	return nil
 }

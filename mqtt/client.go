@@ -31,6 +31,7 @@ type Client struct {
 	st      *state.State
 	handler Handler
 	log     *slog.Logger
+	ctx     context.Context
 
 	client      pahomqtt.Client
 	sequenceID  int
@@ -54,12 +55,13 @@ func Connect(ctx context.Context, st *state.State, chatOn, foreground bool, hand
 		return nil, err
 	}
 	c := &Client{
-		st:            st,
-		handler:       handler,
-		log:           log,
-		sequenceID:    seq,
-		chatOn:        chatOn,
-		foreground:    foreground,
+		st:         st,
+		handler:    handler,
+		log:        log,
+		ctx:        ctx,
+		sequenceID: seq,
+		chatOn:     chatOn,
+		foreground: foreground,
 	}
 	if err := c.dial(ctx); err != nil {
 		return nil, err
@@ -127,6 +129,9 @@ func (c *Client) dial(ctx context.Context) error {
 	opts.SetDefaultPublishHandler(c.onMessage)
 	opts.SetConnectionLostHandler(func(_ pahomqtt.Client, err error) {
 		c.log.Error("mqtt connection lost", "error", err)
+		if c.running && !c.reconnecting {
+			go c.reconnectOnLoss()
+		}
 	})
 
 	c.client = pahomqtt.NewClient(opts)
@@ -245,6 +250,20 @@ func (c *Client) reconnectScheduler() {
 			}
 			_ = c.Reconnect(context.Background())
 		}
+	}
+}
+
+func (c *Client) reconnectOnLoss() {
+	time.Sleep(2 * time.Second)
+	if !c.running || c.reconnecting {
+		return
+	}
+	ctx := c.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := c.Reconnect(ctx); err != nil {
+		c.log.Error("mqtt immediate reconnect failed", "error", err)
 	}
 }
 

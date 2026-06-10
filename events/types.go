@@ -43,6 +43,9 @@ const (
 	ThreadApprovalQueue     Type = "approval_queue"
 	ThreadMagicWords        Type = "magic_words_change"
 	ThreadMessageSharing    Type = "message_sharing_change"
+	ThreadGameChange        Type = "game_update"
+	ThreadJoinableLinkReset Type = "joinable_link_reset"
+	ThreadJoinableModeChange Type = "joinable_mode_change"
 	ViewerStatusChange      Type = "viewer_status_change"
 	Unknown                 Type = "unknown"
 )

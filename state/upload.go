@@ -21,8 +21,28 @@ type FilePart struct {
 	ContentType string
 }
 
+// UploadFileResult is full metadata for one uploaded file.
+type UploadFileResult struct {
+	ID       int64
+	FileType string
+	Filename string
+}
+
 // UploadFiles uploads attachments to Mercury and returns file ids.
 func (s *State) UploadFiles(ctx context.Context, files []FilePart, voiceClip bool) ([]int64, error) {
+	results, err := s.UploadFilesDetailed(ctx, files, voiceClip)
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]int64, len(results))
+	for i, r := range results {
+		ids[i] = r.ID
+	}
+	return ids, nil
+}
+
+// UploadFilesDetailed uploads attachments and returns full file metadata.
+func (s *State) UploadFilesDetailed(ctx context.Context, files []FilePart, voiceClip bool) ([]UploadFileResult, error) {
 	if len(files) == 0 {
 		return nil, fberr.New("UploadFiles", "no files provided")
 	}
@@ -75,15 +95,34 @@ func (s *State) UploadFiles(ctx context.Context, files []FilePart, voiceClip boo
 	}
 	payload, _ := out["payload"].(map[string]any)
 	meta, _ := payload["metadata"].(map[string]any)
-	ids := make([]int64, 0, len(files))
+	results := make([]UploadFileResult, 0, len(files))
 	for _, v := range meta {
 		m, _ := v.(map[string]any)
 		ft, _ := m["filetype"].(string)
 		key := internal.MIMEToKey(ft)
 		id := int64(float64Val(m[key]))
-		ids = append(ids, id)
+		results = append(results, UploadFileResult{
+			ID:       id,
+			FileType: ft,
+			Filename: strVal(m["filename"]),
+		})
 	}
-	return ids, nil
+	if len(results) != len(files) {
+		return nil, fberr.New("UploadFilesDetailed", "some files could not be uploaded")
+	}
+	return results, nil
+}
+
+func strVal(v any) string {
+	switch x := v.(type) {
+	case string:
+		return x
+	default:
+		if v == nil {
+			return ""
+		}
+		return fmt.Sprint(v)
+	}
 }
 
 // FilesFromPaths reads local files for upload.

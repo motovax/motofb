@@ -43,27 +43,44 @@ func threadInt(threadID string) int {
 }
 
 // UploadFiles uploads local paths or remote URLs and returns Mercury file ids.
-func (s *Service) UploadFiles(ctx context.Context, filePath, fileURL []string, voiceClip, fullData bool) ([]int64, error) {
-	_ = fullData
+// When fullData is true, returns []state.UploadFileResult instead of []int64.
+func (s *Service) UploadFiles(ctx context.Context, filePath, fileURL []string, voiceClip, fullData bool) (any, error) {
 	if err := s.requireState(); err != nil {
 		return nil, err
 	}
+	var files []state.FilePart
+	var err error
 	switch {
 	case len(filePath) > 0:
-		files, err := state.FilesFromPaths(filePath)
+		files, err = state.FilesFromPaths(filePath)
 		if err != nil {
 			return nil, err
 		}
-		return s.State.UploadFiles(ctx, files, voiceClip)
 	case len(fileURL) > 0:
-		files, err := state.FilesFromURLs(ctx, s.State.HTTP, fileURL)
+		files, err = state.FilesFromURLs(ctx, s.State.HTTP, fileURL)
 		if err != nil {
 			return nil, err
 		}
-		return s.State.UploadFiles(ctx, files, true)
+		voiceClip = true
 	default:
 		return nil, fberr.Wrap("UploadFiles", "'file_path' or 'file_url' must be provided", fberr.ErrValidation)
 	}
+	if fullData {
+		return s.State.UploadFilesDetailed(ctx, files, voiceClip)
+	}
+	return s.State.UploadFiles(ctx, files, voiceClip)
+}
+
+func (s *Service) uploadFileIDs(ctx context.Context, filePath, fileURL []string, voiceClip bool) ([]int64, error) {
+	raw, err := s.UploadFiles(ctx, filePath, fileURL, voiceClip, false)
+	if err != nil {
+		return nil, err
+	}
+	ids, ok := raw.([]int64)
+	if !ok {
+		return nil, fberr.New("uploadFileIDs", "unexpected upload result type")
+	}
+	return ids, nil
 }
 
 // FetchThreadInfo fetches metadata for multiple threads.
@@ -117,14 +134,17 @@ func (s *Service) FetchThreadMessages(ctx context.Context, threadID string, mess
 	if err := s.requireState(); err != nil {
 		return nil, err
 	}
-	_ = before
-	result, err := s.State.GraphQLBatch(ctx, graphql.FromDocID(graphql.DocThreadMessages, map[string]any{
-		"id":                  threadID,
-		"message_limit":       messageLimit,
-		"load_messages":       true,
-		"load_read_receipts":  true,
-		"before":              nil,
-	}))
+	params := map[string]any{
+		"id":                 threadID,
+		"message_limit":      messageLimit,
+		"load_messages":      true,
+		"load_read_receipts": true,
+		"before":             nil,
+	}
+	if before != nil {
+		params["before"] = *before
+	}
+	result, err := s.State.GraphQLBatch(ctx, graphql.FromDocID(graphql.DocThreadMessages, params))
 	if err != nil {
 		return nil, err
 	}
@@ -241,14 +261,14 @@ func (s *Service) SendMessage(ctx context.Context, text *string, threadID string
 	}
 	if len(filePath) > 0 {
 		payload["send_type"] = 3
-		ids, err := s.UploadFiles(ctx, filePath, nil, true, false)
+		ids, err := s.uploadFileIDs(ctx, filePath, nil, true)
 		if err != nil {
 			return "", err
 		}
 		payload["attachment_fbids"] = ids
 	} else if len(fileURL) > 0 {
 		payload["send_type"] = 3
-		ids, err := s.UploadFiles(ctx, nil, fileURL, true, false)
+		ids, err := s.uploadFileIDs(ctx, nil, fileURL, true)
 		if err != nil {
 			return "", err
 		}
@@ -338,7 +358,7 @@ func (s *Service) SendFiles(ctx context.Context, threadID string, fileIDs []int6
 
 // SendFilesFromPath uploads and sends local files.
 func (s *Service) SendFilesFromPath(ctx context.Context, threadID string, filePaths []string) error {
-	ids, err := s.UploadFiles(ctx, filePaths, nil, true, false)
+	ids, err := s.uploadFileIDs(ctx, filePaths, nil, true)
 	if err != nil {
 		return err
 	}
@@ -347,7 +367,7 @@ func (s *Service) SendFilesFromPath(ctx context.Context, threadID string, filePa
 
 // SendFilesFromURL uploads and sends remote files.
 func (s *Service) SendFilesFromURL(ctx context.Context, threadID string, fileURLs []string) error {
-	ids, err := s.UploadFiles(ctx, nil, fileURLs, true, false)
+	ids, err := s.uploadFileIDs(ctx, nil, fileURLs, true)
 	if err != nil {
 		return err
 	}
@@ -623,13 +643,13 @@ func (s *Service) ChangeThreadImage(ctx context.Context, threadID string, imageI
 	case imageID != nil:
 		id = *imageID
 	case imagePath != nil && *imagePath != "":
-		ids, err := s.UploadFiles(ctx, []string{*imagePath}, nil, true, false)
+		ids, err := s.uploadFileIDs(ctx, []string{*imagePath}, nil, true)
 		if err != nil {
 			return err
 		}
 		id = ids[0]
 	case imageURL != nil && *imageURL != "":
-		ids, err := s.UploadFiles(ctx, nil, []string{*imageURL}, true, false)
+		ids, err := s.uploadFileIDs(ctx, nil, []string{*imageURL}, true)
 		if err != nil {
 			return err
 		}

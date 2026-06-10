@@ -13,7 +13,7 @@ func (c *Client) Download(ctx context.Context, url, filename string) error {
 
 // --- Messenger API delegates (Python MessengerClient parity) ---
 
-func (c *Client) UploadFiles(ctx context.Context, filePath, fileURL []string, voiceClip, fullData bool) ([]int64, error) {
+func (c *Client) UploadFiles(ctx context.Context, filePath, fileURL []string, voiceClip, fullData bool) (any, error) {
 	return c.messenger.UploadFiles(ctx, filePath, fileURL, voiceClip, fullData)
 }
 

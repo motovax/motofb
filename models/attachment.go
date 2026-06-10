@@ -54,11 +54,12 @@ type PostAttachment struct {
 }
 
 type ProfileAttachment struct {
-	ID            string
-	ProfileID     string
-	ProfileName   string
-	ProfileURL    string
+	ID             string
+	ProfileID      string
+	ProfileName    string
+	ProfileURL     string
 	ProfilePicture string
+	CoverPhoto     string
 }
 
 type ExternalAttachment struct {

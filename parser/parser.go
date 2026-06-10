@@ -41,21 +41,6 @@ var attachToMessage = map[models.AttachmentType]models.MessageType{
 	models.AttachmentFacebookStory:   models.MessageTypeFacebookPost,
 }
 
-var adminTextToEvent = map[string]events.Type{
-	"joinable_group_link_reset":              events.ThreadAction,
-	"joinable_group_link_mode_change":        events.ThreadAction,
-	"change_thread_nickname":                 events.NicknameChange,
-	"change_thread_theme":                    events.ThemeChange,
-	"change_thread_approval_mode":            events.ThreadAction,
-	"change_thread_quick_reaction":           events.EmojiChange,
-	"change_thread_admins":                   events.AdminAdded,
-	"magic_words":                            events.ThreadAction,
-	"limit_sharing":                          events.ThreadAction,
-	"instant_game_dynamic_custom_update":     events.ThreadAction,
-	"pin_messages_v2":                        events.MessagePinned,
-	"unpin_messages_v2":                      events.MessageUnpinned,
-}
-
 // ParseTMS parses /t_ms delta payloads.
 func (p *Parser) ParseTMS(payload []byte) []ParsedEvent {
 	var root map[string]any
@@ -131,19 +116,19 @@ func (p *Parser) ParseDeltas(delta map[string]any) *ParsedEvent {
 	case "ParticipantLeft":
 		return &ParsedEvent{EventType: events.ParticipantLeft, Args: []any{parseParticipantLeft(delta)}}
 	case "ApprovalMode":
-		return &ParsedEvent{EventType: events.ThreadAction, Args: []any{parseApprovalMode(delta)}}
+		return &ParsedEvent{EventType: events.ThreadApprovalMode, Args: []any{parseApprovalMode(delta)}}
 	case "ApprovalQueue":
-		return &ParsedEvent{EventType: events.ThreadAction, Args: []any{parseApprovalQueue(delta)}}
+		return &ParsedEvent{EventType: events.ThreadApprovalQueue, Args: []any{parseApprovalQueue(delta)}}
 	case "ThreadName":
 		return &ParsedEvent{EventType: events.ThreadNameChange, Args: []any{parseThreadName(delta)}}
 	case "ThreadAction":
 		return &ParsedEvent{EventType: events.ThreadAction, Args: []any{parseThreadAction(delta)}}
 	case "ThreadFolderMove":
-		return &ParsedEvent{EventType: events.ThreadAction, Args: []any{parseThreadFolderMove(delta)}}
+		return &ParsedEvent{EventType: events.ThreadFolderMove, Args: []any{parseThreadFolderMove(delta)}}
 	case "ThreadDelete":
 		return &ParsedEvent{EventType: events.ThreadDelete, Args: []any{parseThreadDelete(delta)}}
 	case "ThreadMuteSettings":
-		return &ParsedEvent{EventType: events.ThreadAction, Args: []any{parseThreadMuteSettings(delta)}}
+		return &ParsedEvent{EventType: events.ThreadMuteSettings, Args: []any{parseThreadMuteSettings(delta)}}
 	case "AdminTextMessage":
 		return p.parseAdminText(delta)
 	default:
@@ -311,8 +296,11 @@ func (p *Parser) parseClientPayload(delta map[string]any) *ParsedEvent {
 		return nil
 	}
 	first, _ := deltas[0].(map[string]any)
-	if reply, ok := first["messageReply"].(map[string]any); ok {
+	if reply, ok := deltaMap(first, "deltaMessageReply", "messageReply"); ok {
 		etype := events.Message
+		if replyType, _ := first["replyType"].(float64); int(replyType) == 1 {
+			etype = events.MessageBump
+		}
 		var replied models.Message
 		if rm, ok := reply["repliedToMessage"].(map[string]any); ok {
 			replied = p.ParseMessage(rm, nil)
@@ -322,55 +310,80 @@ func (p *Parser) parseClientPayload(delta map[string]any) *ParsedEvent {
 			return &ParsedEvent{EventType: etype, Args: []any{main}}
 		}
 	}
-	if reaction, ok := first["messageReaction"].(map[string]any); ok {
-		return &ParsedEvent{EventType: events.MessageReaction, Args: []any{reaction}}
+	if reaction, ok := deltaMap(first, "deltaMessageReaction", "messageReaction"); ok {
+		return &ParsedEvent{EventType: events.MessageReaction, Args: []any{parseMessageReaction(reaction)}}
 	}
-	if unsend, ok := first["messageUnsend"].(map[string]any); ok {
+	if unsend, ok := deltaMap(first, "deltaRecallMessageData", "messageUnsend"); ok {
 		return &ParsedEvent{EventType: events.MessageUnsent, Args: []any{parseMessageUnsend(unsend)}}
 	}
-	if remove, ok := first["messageRemove"].(map[string]any); ok {
+	if remove, ok := deltaMap(first, "deltaRemoveMessage", "messageRemove"); ok {
 		return &ParsedEvent{EventType: events.MessageRemove, Args: []any{parseMessageRemove(remove)}}
 	}
-	if mute, ok := first["muteThread"].(map[string]any); ok {
-		return &ParsedEvent{EventType: events.ThreadAction, Args: []any{parseMuteThread(mute)}}
+	if mute, ok := deltaMap(first, "deltaMuteCallsFromThread", "muteThread"); ok {
+		return &ParsedEvent{EventType: events.ThreadMute, Args: []any{parseMuteThread(mute)}}
 	}
-	if page, ok := first["pageNotification"].(map[string]any); ok {
-		return &ParsedEvent{EventType: events.ThreadAction, Args: []any{page}}
+	if page, ok := deltaMap(first, "deltaBiiMPageMessageNotification", "pageNotification"); ok {
+		return &ParsedEvent{EventType: events.PageNotification, Args: []any{parsePageNotification(page)}}
+	}
+	if viewer, ok := deltaMap(first, "deltaChangeViewerStatus", "changeViewerStatus"); ok {
+		return &ParsedEvent{EventType: events.ViewerStatusChange, Args: []any{parseChangeViewerStatus(viewer)}}
 	}
 	return nil
 }
 
 func (p *Parser) parseAdminText(delta map[string]any) *ParsedEvent {
 	adminType, _ := delta["type"].(string)
-	if strings.Contains(stringify(delta["untypedData"]), "remove_admin") {
+	if containsRemoveAdmin(delta["untypedData"]) {
+		return nil
+	}
+	if _, ok := AllAdminText[adminType]; !ok {
 		return nil
 	}
 	etype, ok := adminTextToEvent[adminType]
 	if !ok {
 		return nil
 	}
+	decoded, err := decodeAdminUntyped(etype, delta["untypedData"])
+	if err != nil {
+		return nil
+	}
 	meta, _ := delta["messageMetadata"].(map[string]any)
-	return &ParsedEvent{EventType: etype, Args: []any{delta["untypedData"], parseMessageData(meta)}}
+	return &ParsedEvent{EventType: etype, Args: []any{decoded, parseMessageData(meta)}}
 }
 
 func (p *Parser) parseNotifications(payload []byte) *ParsedEvent {
-	var raw map[string]any
-	if err := json.Unmarshal(payload, &raw); err != nil {
+	raw := decodeNotificationPayload(payload)
+	if raw == nil {
 		return nil
 	}
-	if _, ok := raw["friend_request_state"]; ok {
+	switch strVal(raw["type"]) {
+	case "friending_state_change":
 		return &ParsedEvent{
 			EventType: events.FriendRequestChange,
-			Args:      []any{models.FriendRequestState{UserID: strVal(raw["user_id"]), Action: strVal(raw["action"])}},
+			Args: []any{models.FriendRequestState{
+				UserID: strVal(raw["userid"]),
+				Action: strVal(raw["action"]),
+			}},
 		}
-	}
-	if _, ok := raw["friend_requests"]; ok {
+	case "mobile_requests_count":
 		return &ParsedEvent{
-			EventType: events.FriendRequestChange,
-			Args:      []any{models.FriendRequestList{NewFriendRequest: toBool(raw["new_friend_request"])}},
+			EventType: events.FriendRequestListUpdate,
+			Args: []any{models.FriendRequestList{
+				FriendRequests:   []any{raw["num_unread"]},
+				NewFriendRequest: toBool(raw["num_unseen"]),
+			}},
 		}
+	case "live_poke":
+		return &ParsedEvent{
+			EventType: events.PokeNotification,
+			Args: []any{models.PokeNotification{
+				UserPoked: strVal(raw["poke_source"]),
+				PokeTime:  int64(toInt(raw["poke_time"])),
+			}},
+		}
+	default:
+		return nil
 	}
-	return nil
 }
 
 func (p *Parser) parseAttachmentsFromDelta(data map[string]any) []models.Attachment {
@@ -415,31 +428,31 @@ func (p *Parser) parseMercury(mercury map[string]any) *models.Attachment {
 
 func (p *Parser) parseExtensible(data map[string]any) *models.Attachment {
 	genie := strVal(data["genie_attachment"])
-	story, _ := data["story_attachment"].(map[string]any)
-	target, _ := story["target"].(map[string]any)
-	typ := models.AttachmentExternalURL
 	switch genie {
 	case string(models.AttachmentFacebookPost):
-		typ = models.AttachmentFacebookPost
+		return &models.Attachment{Type: models.AttachmentFacebookPost, Data: p.parsePostExtensible(data)}
 	case string(models.AttachmentFacebookReel):
-		typ = models.AttachmentFacebookReel
+		return &models.Attachment{Type: models.AttachmentFacebookReel, Data: p.parseReelExtensible(data)}
 	case string(models.AttachmentFacebookProfile):
-		typ = models.AttachmentFacebookProfile
+		return &models.Attachment{Type: models.AttachmentFacebookProfile, Data: p.parseProfileExtensible(data)}
 	case string(models.AttachmentLocation):
-		typ = models.AttachmentLocation
+		return &models.Attachment{Type: models.AttachmentLocation, Data: p.parseLocationExtensible(data)}
 	case string(models.AttachmentFacebookProduct):
-		typ = models.AttachmentFacebookProduct
+		return &models.Attachment{Type: models.AttachmentFacebookProduct, Data: p.parseProductExtensible(data)}
+	case string(models.AttachmentExternalURL):
+		return &models.Attachment{Type: models.AttachmentExternalURL, Data: p.parseExternalExtensible(data)}
 	case "None":
-		typ = models.AttachmentFacebookStory
-	}
-	return &models.Attachment{
-		Type: typ,
-		Data: map[string]any{
-			"id":    strVal(data["legacy_attachment_id"]),
-			"title": strVal(story["title"]),
-			"url":   strVal(story["url"]),
-			"target": target,
-		},
+		return &models.Attachment{Type: models.AttachmentFacebookStory, Data: p.parseStoryExtensible(data)}
+	default:
+		story, _ := data["story_attachment"].(map[string]any)
+		target, _ := story["target"].(map[string]any)
+		if target != nil {
+			typ := models.AttachmentType(strVal(target["__typename"]))
+			if mt, ok := attachToMessage[typ]; ok {
+				_ = mt
+			}
+		}
+		return &models.Attachment{Type: models.AttachmentExternalURL, Data: p.parseExternalExtensible(data)}
 	}
 }
 
@@ -914,4 +927,91 @@ func stripJSONCruft(content string) string {
 func stringify(v any) string {
 	b, _ := json.Marshal(v)
 	return string(b)
+}
+
+func deltaMap(first map[string]any, keys ...string) (map[string]any, bool) {
+	for _, key := range keys {
+		if m, ok := first[key].(map[string]any); ok {
+			return m, true
+		}
+	}
+	return nil, false
+}
+
+func decodeNotificationPayload(payload []byte) map[string]any {
+	var raw map[string]any
+	if err := json.Unmarshal(payload, &raw); err != nil {
+		return nil
+	}
+	if strVal(raw["type"]) != "" {
+		return raw
+	}
+	if arr, ok := raw["deltas"].([]any); ok && len(arr) > 0 {
+		if m, ok := arr[0].(map[string]any); ok {
+			return m
+		}
+	}
+	return raw
+}
+
+func parseMessageReaction(data map[string]any) models.MessageReaction {
+	reaction := models.MessageReaction{
+		ID:                   strVal(firstStr(data, "messageId", "messageID")),
+		ThreadID:             unwrapStr(data["threadKey"]),
+		Reactor:              int64(toInt(firstStr(data, "userId", "userID"))),
+		ReactedMessageSender: int64(toInt(firstStr(data, "senderId", "senderID"))),
+		Reaction:             strVal(data["reaction"]),
+		ReactionType:         models.ReactionAction(toInt(data["action"])),
+	}
+	if ts, ok := data["reactionTimestamp"]; ok {
+		v := int64(toInt(ts))
+		reaction.Timestamp = &v
+	}
+	return reaction
+}
+
+func parsePageNotification(data map[string]any) models.PageNotification {
+	return models.PageNotification{
+		SenderID:  strVal(data["senderId"]),
+		PageID:    strVal(data["pageId"]),
+		PageName:  strVal(data["pageName"]),
+		MessageID: strVal(data["messageId"]),
+		Title:     strVal(data["title"]),
+		Text:      strVal(data["body"]),
+	}
+}
+
+func parseChangeViewerStatus(data map[string]any) models.ChangeViewerStatus {
+	out := models.ChangeViewerStatus{
+		UserID:   unwrapStr(data["actorFbid"]),
+		ThreadID: unwrapStr(data["threadKey"]),
+		CanReply: toBool(data["canViewerReply"]),
+		Reason:   toInt(data["reason"]),
+	}
+	if v, ok := data["isMsgBlockedByViewer"]; ok {
+		b := toBool(v)
+		out.IsMessengerBlocked = &b
+	}
+	if v, ok := data["isFBBlockedByViewer"]; ok {
+		b := toBool(v)
+		out.IsFacebookBlocked = &b
+	}
+	if v, ok := data["isMsgBlockedTimestamp"]; ok {
+		ts := int64(toInt(v))
+		out.MessengerBlockedTimestamp = &ts
+	}
+	if v, ok := data["isFBBlockedTimestamp"]; ok {
+		ts := int64(toInt(v))
+		out.FacebookBlockedTimestamp = &ts
+	}
+	return out
+}
+
+func firstStr(m map[string]any, keys ...string) any {
+	for _, k := range keys {
+		if v, ok := m[k]; ok && v != nil {
+			return v
+		}
+	}
+	return nil
 }

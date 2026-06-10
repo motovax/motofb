@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"sync"
+	"time"
 
 	"github.com/motovax/motofb/events"
 	"github.com/motovax/motofb/facebook"
@@ -138,6 +139,23 @@ func (c *Client) Facebook() *facebook.Client { return c.facebook }
 // On registers an event handler.
 func (c *Client) On(event events.Type, handler events.Handler) {
 	c.events.On(event, handler)
+}
+
+// Off removes a previously registered event handler.
+func (c *Client) Off(event events.Type, handler events.Handler) {
+	c.events.Off(event, handler)
+}
+
+// RegisterMethods registers On* methods from hooks as event handlers.
+func (c *Client) RegisterMethods(hooks any) error {
+	return c.events.RegisterMethods(hooks)
+}
+
+// EnableAutoRefresh enables periodic session token refresh on the underlying state.
+func (c *Client) EnableAutoRefresh(interval time.Duration) {
+	if c.state != nil {
+		c.state.EnableAutoRefresh(interval)
+	}
 }
 
 // Connect validates the session is ready.
