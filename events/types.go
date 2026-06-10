@@ -1,0 +1,48 @@
+// Package events provides the event type registry and dispatcher.
+package events
+
+// Type identifies a Messenger/Facebook realtime event.
+type Type string
+
+const (
+	AdminAdded       Type = "admin_added"
+	AdminRemoved     Type = "admin_removed"
+	Disconnect       Type = "disconnect"
+	Error            Type = "error"
+	Listening        Type = "listening"
+	Presence         Type = "presence"
+	Reconnect        Type = "reconnect"
+	Message          Type = "message"
+	MessageUnsent    Type = "message_unsent"
+	MessageReaction  Type = "message_reaction"
+	MessageRemove    Type = "message_remove"
+	MessageSeen      Type = "message_seen"
+	MessageDelivered Type = "message_delivered"
+	MessagePinned    Type = "message_pinned"
+	MessageUnpinned  Type = "message_unpinned"
+	MarkRead         Type = "mark_read"
+	MarkUnread       Type = "mark_unread"
+	Typing           Type = "typing"
+	ThemeChange      Type = "theme_change"
+	EmojiChange      Type = "emoji_change"
+	NicknameChange   Type = "nickname_change"
+	ThreadNameChange Type = "thread_name_change"
+	ThreadDelete     Type = "thread_delete"
+	ThreadAction     Type = "thread_action"
+	ParticipantJoined Type = "participant_joined"
+	ParticipantLeft  Type = "participant_left"
+	FriendRequestChange     Type = "friend_request_change"
+	FriendRequestListUpdate Type = "friend_request_list_update"
+	PokeNotification        Type = "poke_nofification"
+	PageNotification        Type = "page_notification"
+	MessageBump             Type = "message_bump"
+	ThreadMute              Type = "thread_mute"
+	ThreadMuteSettings      Type = "thread_mute_settings"
+	ThreadFolderMove        Type = "thread_folder_move"
+	ThreadApprovalMode      Type = "approval_mode_change"
+	ThreadApprovalQueue     Type = "approval_queue"
+	ThreadMagicWords        Type = "magic_words_change"
+	ThreadMessageSharing    Type = "message_sharing_change"
+	ViewerStatusChange      Type = "viewer_status_change"
+	Unknown                 Type = "unknown"
+)
