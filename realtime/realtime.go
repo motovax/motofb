@@ -1,6 +1,7 @@
 package realtime
 
 import (
+	"bytes"
 	"context"
 	"encoding/binary"
 	"encoding/json"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/coder/websocket"
 
+	"github.com/motovax/motofb/models"
 	"github.com/motovax/motofb/state"
 )
 
@@ -20,18 +22,6 @@ const (
 	wsHost = "wss://gateway.facebook.com/ws/realtime"
 	appID  = "2220391788200892"
 )
-
-// Notification is a formatted Facebook notification from the realtime gateway.
-type Notification struct {
-	Type      string
-	NotifID   string
-	Body      string
-	SenderID  string
-	URL       string
-	Timestamp int64
-	SeenState any
-	RawData   map[string]any
-}
 
 // Handler receives realtime WebSocket frames.
 type Handler func(frameType string, data []byte)
@@ -171,10 +161,29 @@ func (c *Client) reconnect(ctx context.Context) error {
 	return c.connect(ctx)
 }
 
+// ExtractJSON returns the JSON object slice from a realtime binary/text frame.
+func ExtractJSON(data []byte) []byte {
+	data = bytes.TrimSpace(data)
+	if len(data) == 0 {
+		return nil
+	}
+	if data[0] == '{' || data[0] == '[' {
+		return data
+	}
+	if idx := bytes.IndexByte(data, '{'); idx >= 0 {
+		return data[idx:]
+	}
+	return nil
+}
+
 // FormatNotification extracts a notification from a realtime WebSocket payload.
-func FormatNotification(data []byte) *Notification {
+func FormatNotification(data []byte) *models.FacebookNotification {
+	jsonPayload := ExtractJSON(data)
+	if jsonPayload == nil {
+		return nil
+	}
 	var root map[string]any
-	if err := json.Unmarshal(data, &root); err != nil {
+	if err := json.Unmarshal(jsonPayload, &root); err != nil {
 		return nil
 	}
 	viewer, _ := root["data"].(map[string]any)
@@ -208,15 +217,13 @@ func FormatNotification(data []byte) *Notification {
 	if ct, ok := notif["creation_time"].(map[string]any); ok {
 		ts = int64(jsonNumber(ct["timestamp"]))
 	}
-	return &Notification{
-		Type:      "notification",
+	return &models.FacebookNotification{
 		NotifID:   fmt.Sprint(notif["notif_id"]),
 		Body:      body,
 		SenderID:  senderID,
 		URL:       fmt.Sprint(notif["url"]),
 		Timestamp: ts,
 		SeenState: notif["seen_state"],
-		RawData:   root,
 	}
 }
 

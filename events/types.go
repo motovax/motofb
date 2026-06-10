@@ -47,5 +47,6 @@ const (
 	ThreadJoinableLinkReset Type = "joinable_link_reset"
 	ThreadJoinableModeChange Type = "joinable_mode_change"
 	ViewerStatusChange      Type = "viewer_status_change"
+	Notification            Type = "notification"
 	Unknown                 Type = "unknown"
 )

@@ -31,3 +31,41 @@ func TestSubscriptionWireFormat(t *testing.T) {
 		t.Fatalf("expected trailing 0,0 suffix")
 	}
 }
+
+func TestExtractJSON(t *testing.T) {
+	raw := append([]byte{0, 14, 0, 0}, []byte(`{"data":{"viewer":{}}}`)...)
+	out := ExtractJSON(raw)
+	if out == nil || string(out) != `{"data":{"viewer":{}}}` {
+		t.Fatalf("unexpected extract: %s", out)
+	}
+}
+
+func TestFormatNotification(t *testing.T) {
+	payload := []byte(`{
+		"data": {
+			"viewer": {
+				"notifications_page": {
+					"edges": [
+						{},
+						{
+							"node": {
+								"notif": {
+									"notif_id": "n1",
+									"body": {"text": "hello"},
+									"url": "https://facebook.com",
+									"creation_time": {"timestamp": 99},
+									"tracking": {"from_uids": {"123": true}},
+									"seen_state": "NEW"
+								}
+							}
+						}
+					]
+				}
+			}
+		}
+	}`)
+	n := FormatNotification(payload)
+	if n == nil || n.NotifID != "n1" || n.Body != "hello" || n.SenderID != "123" || n.Timestamp != 99 {
+		t.Fatalf("unexpected notification: %+v", n)
+	}
+}

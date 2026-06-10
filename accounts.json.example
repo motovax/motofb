@@ -1,0 +1,14 @@
+{
+  "accounts": [
+    {
+      "id": "shop-a",
+      "cookies": "cookies-a.json",
+      "restore": true
+    },
+    {
+      "id": "shop-b",
+      "cookies": "cookies-b.json",
+      "restore": true
+    }
+  ]
+}

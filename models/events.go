@@ -78,6 +78,16 @@ type PokeNotification struct {
 	PokeTime  int64
 }
 
+// FacebookNotification is a Facebook.com notification from the realtime gateway.
+type FacebookNotification struct {
+	NotifID   string
+	Body      string
+	SenderID  string
+	URL       string
+	Timestamp int64
+	SeenState any
+}
+
 // PageNotification for page inbox.
 type PageNotification struct {
 	SenderID  string `json:"senderId"`

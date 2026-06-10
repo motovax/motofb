@@ -251,18 +251,48 @@ func (c *Client) handleMQTT(topic string, payload []byte) {
 		return
 	}
 	if topic == "/t_ms" && bytesContains(payload, []byte("deltas")) {
-		for _, ev := range c.parser.ParseTMS(payload) {
-			c.enqueue(ev)
-		}
+		c.handleTMS(payload)
 		return
 	}
 	if ev := c.parser.ParseAll(topic, payload); ev != nil {
 		c.enqueue(*ev)
+		return
+	}
+	if c.log.Enabled(context.Background(), slog.LevelDebug) {
+		c.log.Debug("unhandled mqtt payload", "topic", topic, "bytes", len(payload))
 	}
 }
 
-func (c *Client) handleRealtime(_ string, _ []byte) {
-	// Parity with Python: realtime handler is currently no-op.
+func (c *Client) handleTMS(payload []byte) {
+	var root map[string]any
+	if err := json.Unmarshal(payload, &root); err != nil {
+		c.logParseIssue("/t_ms", "unmarshal root", err)
+		c.dispatchEvent(context.Background(), events.Error, err)
+		return
+	}
+	deltas, _ := root["deltas"].([]any)
+	for _, d := range deltas {
+		m, ok := d.(map[string]any)
+		if !ok {
+			continue
+		}
+		ev, err := c.parser.ParseDeltasSafe(m)
+		if err != nil {
+			class, _ := m["class"].(string)
+			c.logParseIssue("/t_ms", "class="+class, err)
+			c.dispatchEvent(context.Background(), events.Error, err)
+			continue
+		}
+		if ev != nil {
+			c.enqueue(*ev)
+		}
+	}
+}
+
+func (c *Client) handleRealtime(_ string, data []byte) {
+	if notif := realtime.FormatNotification(data); notif != nil {
+		c.enqueue(parser.ParsedEvent{EventType: events.Notification, Args: []any{*notif}})
+	}
 }
 
 func (c *Client) enqueue(ev parser.ParsedEvent) {

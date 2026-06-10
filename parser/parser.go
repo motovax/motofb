@@ -92,6 +92,19 @@ func (p *Parser) ParseAll(topic string, payload []byte) *ParsedEvent {
 	return nil
 }
 
+// ParseDeltasSafe parses one delta and recovers from unexpected decode panics.
+func (p *Parser) ParseDeltasSafe(delta map[string]any) (ev *ParsedEvent, err error) {
+	class, _ := delta["class"].(string)
+	defer func() {
+		if r := recover(); r != nil {
+			err = fberr.Wrap("ParseDeltas", "panic parsing class "+class, fmt.Errorf("%v", r))
+			ev = nil
+		}
+	}()
+	ev = p.ParseDeltas(delta)
+	return ev, nil
+}
+
 // ParseDeltas parses one delta object from /t_ms.
 func (p *Parser) ParseDeltas(delta map[string]any) *ParsedEvent {
 	class, _ := delta["class"].(string)

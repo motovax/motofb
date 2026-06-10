@@ -93,6 +93,15 @@ Example: `go run ./cmd/multibot` (reads `accounts.json`, stores sessions in `ses
 
 SQLite stores one row per account (`client_id`, cookie snapshot JSON). JSON dir and Redis backends remain available via `NewManagerWithDir` / `NewManagerWithRedis`.
 
+Copy `accounts.json.example` to `accounts.json` and add one cookies file per account.
+
+### Logging
+
+```go
+client.EnableInfoLogging()  // message, reactions, friend requests, notifications
+client.EnableDefaultLogging() // debug log for every event type
+```
+
 See `docs/plans/fbchat-muqit-go-api-mapping.md` in the MotoVax monorepo for the full Python → Go mapping.
 
 ## Development

@@ -38,6 +38,8 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	// Uncomment for verbose per-event logs on every account:
+	// for _, id := range mgr.ClientIDs() { c, _ := mgr.GetClient(id); c.EnableInfoLogging() }
 	if err := mgr.AddAccountsFromFile(ctx, accountsFile); err != nil {
 		log.Fatal(err)
 	}
