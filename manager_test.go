@@ -16,16 +16,70 @@ func TestManagerEventRouting(t *testing.T) {
 	dir := t.TempDir()
 	mgr := NewManagerWithDir(dir, nil)
 	var count atomic.Int32
-	mgr.On("acc1", events.Message, func(ctx context.Context, args ...any) error {
+	var gotID atomic.Value
+	mgr.On("acc1", events.Message, func(ctx context.Context, clientID string, args ...any) error {
+		gotID.Store(clientID)
 		count.Add(1)
 		return nil
 	})
 	mgr.routeEvent("acc1", events.Message)
 	waitFor(t, func() bool { return count.Load() == 1 })
+	if gotID.Load() != "acc1" {
+		t.Fatalf("expected client id acc1, got %v", gotID.Load())
+	}
 	mgr.routeEvent("acc2", events.Message)
 	time.Sleep(20 * time.Millisecond)
 	if count.Load() != 1 {
 		t.Fatalf("expected event isolation between client ids")
+	}
+}
+
+func TestManagerOnAllClients(t *testing.T) {
+	mgr := NewManager(nil, nil)
+	var count atomic.Int32
+	mgr.On(AllClients, events.Message, func(ctx context.Context, clientID string, args ...any) error {
+		count.Add(1)
+		return nil
+	})
+	mgr.routeEvent("acc1", events.Message)
+	mgr.routeEvent("acc2", events.Message)
+	waitFor(t, func() bool { return count.Load() == 2 })
+}
+
+func TestManagerOff(t *testing.T) {
+	mgr := NewManager(nil, nil)
+	var count atomic.Int32
+	h := func(ctx context.Context, clientID string, args ...any) error {
+		count.Add(1)
+		return nil
+	}
+	mgr.On("acc1", events.Message, h)
+	mgr.routeEvent("acc1", events.Message)
+	waitFor(t, func() bool { return count.Load() == 1 })
+	mgr.Off("acc1", events.Message, h)
+	mgr.routeEvent("acc1", events.Message)
+	time.Sleep(20 * time.Millisecond)
+	if count.Load() != 1 {
+		t.Fatalf("expected handler to be removed")
+	}
+}
+
+func TestLoadAccountSpecs(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "accounts.json")
+	if err := os.WriteFile(path, []byte(`{
+		"accounts": [
+			{"id": "a", "cookies": "a.json", "restore": true},
+			{"id": "b", "cookies": "b.json"}
+		]
+	}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	specs, err := LoadAccountSpecs(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(specs) != 2 || specs[0].ID != "a" || !specs[0].Restore {
+		t.Fatalf("unexpected specs: %+v", specs)
 	}
 }
 

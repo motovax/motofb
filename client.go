@@ -124,6 +124,9 @@ func (c *Client) publishMQTT(topic string, payload []byte) error {
 // UID returns the authenticated Facebook user id.
 func (c *Client) UID() string { return c.state.UserID }
 
+// ManagerID returns the id assigned by a Manager, or empty for standalone clients.
+func (c *Client) ManagerID() string { return c.managerID }
+
 // Name returns the authenticated user's display name when available.
 func (c *Client) Name() string { return c.state.UserName }
 

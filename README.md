@@ -59,7 +59,37 @@ MOTOFB_COOKIES_FILE=cookies.json go run ./cmd/echobot
 - **Messenger:** `SendMessage`, `React`, `FetchThreadList`, `CreateGroupThread`, `MuteThread`, …
 - **Facebook:** `PublishPost`, `UploadPhoto`, `SendFriendRequest`, `ReactToPost`, …
 - **Lifecycle:** `StartListening`, `Listen`, `Run`, `Close`
-- **Multi-account:** `motofb.NewManagerWithDir("./sessions")`
+- **Multi-account:** `motofb.Manager` — isolated sessions, MQTT, and event routing per account
+
+### Multi-account
+
+```go
+mgr := motofb.NewManagerWithDir("./sessions", nil)
+_ = mgr.AddAccountsFromFile(ctx, "accounts.json") // or mgr.AddAccounts(ctx, specs...)
+
+mgr.On(motofb.AllClients, events.Message, func(ctx context.Context, clientID string, args ...any) error {
+    client, _ := mgr.GetClient(clientID)
+    msg := args[0].(models.Message)
+    // handle per-account ...
+    return nil
+})
+
+_ = mgr.Run(ctx) // start all accounts, block until shutdown
+defer mgr.Close(ctx, true) // persist cookie snapshots
+```
+
+`accounts.json`:
+
+```json
+{
+  "accounts": [
+    {"id": "shop-a", "cookies": "cookies-a.json", "restore": true},
+    {"id": "shop-b", "cookies": "cookies-b.json", "restore": true}
+  ]
+}
+```
+
+Example: `MOTOFB_ACCOUNTS_FILE=accounts.json go run ./cmd/multibot`
 
 See `docs/plans/fbchat-muqit-go-api-mapping.md` in the MotoVax monorepo for the full Python → Go mapping.
 
