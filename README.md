@@ -49,7 +49,7 @@ client.Run(ctx) // blocks until SIGINT
 Echo bot example:
 
 ```bash
-MOTOFB_COOKIES_FILE=cookies.json go run ./cmd/echobot
+go run ./cmd/echobot
 ```
 
 ## API surface
@@ -89,7 +89,7 @@ defer mgr.Close(ctx, true) // persist cookie snapshots
 }
 ```
 
-Example: `MOTOFB_ACCOUNTS_FILE=accounts.json MOTOFB_SESSIONS_DB=sessions.db go run ./cmd/multibot`
+Example: `go run ./cmd/multibot` (reads `accounts.json`, stores sessions in `sessions.db`)
 
 SQLite stores one row per account (`client_id`, cookie snapshot JSON). JSON dir and Redis backends remain available via `NewManagerWithDir` / `NewManagerWithRedis`.
 

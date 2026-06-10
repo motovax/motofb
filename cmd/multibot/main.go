@@ -11,13 +11,12 @@
 //
 // Run:
 //
-//	MOTOFB_ACCOUNTS_FILE=accounts.json MOTOFB_SESSIONS_DB=sessions.db go run ./cmd/multibot
+//	go run ./cmd/multibot
 package main
 
 import (
 	"context"
 	"log"
-	"os"
 	"os/signal"
 	"syscall"
 
@@ -27,14 +26,10 @@ import (
 )
 
 func main() {
-	accountsFile := os.Getenv("MOTOFB_ACCOUNTS_FILE")
-	if accountsFile == "" {
+	const (
 		accountsFile = "accounts.json"
-	}
-	dbPath := os.Getenv("MOTOFB_SESSIONS_DB")
-	if dbPath == "" {
-		dbPath = "sessions.db"
-	}
+		dbPath       = "sessions.db"
+	)
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()

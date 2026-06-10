@@ -4,7 +4,6 @@ package main
 import (
 	"context"
 	"log"
-	"os"
 	"os/signal"
 	"syscall"
 
@@ -14,10 +13,7 @@ import (
 )
 
 func main() {
-	cookiePath := "cookies.json"
-	if p := os.Getenv("MOTOFB_COOKIES_FILE"); p != "" {
-		cookiePath = p
-	}
+	const cookiePath = "cookies.json"
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
