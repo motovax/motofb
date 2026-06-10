@@ -159,10 +159,53 @@ func (m *Manager) GetClient(clientID string) (*Client, error) {
 	return c, nil
 }
 
-// AddClient registers a new account from a cookies file.
+// ImportCookies reads a browser cookie export and stores it in SQLite for clientID.
+// Use this once per account; later runs load cookies from the database via restore:true.
+func (m *Manager) ImportCookies(ctx context.Context, clientID, browserExportPath string) error {
+	if m.storage == nil {
+		return fberr.New("ImportCookies", "no session storage configured")
+	}
+	snap, err := state.CookieSnapshotFromFile(browserExportPath)
+	if err != nil {
+		return err
+	}
+	return m.storage.Save(ctx, clientID, snap)
+}
+
+// AddClient registers a new account from a cookies file or from cookies already in SQLite.
 func (m *Manager) AddClient(ctx context.Context, clientID, cookiesPath string, opts ...Option) (*Client, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	c, err := m.registerClient(ctx, clientID, cookiesPath, opts...)
+	if err != nil {
+		return nil, err
+	}
+	m.persistSession(ctx, clientID, c)
+	return c, nil
+}
+
+// RestoreClient loads cookies from SQLite when available, otherwise falls back to cookiesPath.
+func (m *Manager) RestoreClient(ctx context.Context, clientID, cookiesPath string, opts ...Option) (*Client, error) {
+	if m.storage != nil {
+		snap, err := m.storage.Load(ctx, clientID)
+		if err != nil {
+			return nil, err
+		}
+		if snap != nil {
+			if cookies, ok := snap["cookies"].([]any); ok && len(cookies) > 0 {
+				records := cookieRecordsFromSnap(cookies)
+				st, err := state.FromCookieRecords(ctx, records, state.Options{})
+				if err == nil {
+					opts = append(opts, WithInitialState(st))
+					cookiesPath = ""
+				}
+			}
+		}
+	}
+	return m.AddClient(ctx, clientID, cookiesPath, opts...)
+}
+
+func (m *Manager) registerClient(ctx context.Context, clientID, cookiesPath string, opts ...Option) (*Client, error) {
 	if _, ok := m.Clients[clientID]; ok {
 		return nil, fberr.New("AddClient", fmt.Sprintf("client id already registered: %s", clientID))
 	}
@@ -172,9 +215,10 @@ func (m *Manager) AddClient(ctx context.Context, clientID, cookiesPath string, o
 	}
 	var st *state.State
 	var err error
-	if cfg.initialState != nil {
+	switch {
+	case cfg.initialState != nil:
 		st = cfg.initialState
-	} else {
+	case cookiesPath != "":
 		st, err = state.FromCookieFile(ctx, cookiesPath, state.Options{
 			UserAgent: cfg.userAgent,
 			ProxyURL:  cfg.proxyURL,
@@ -182,6 +226,8 @@ func (m *Manager) AddClient(ctx context.Context, clientID, cookiesPath string, o
 		if err != nil {
 			return nil, err
 		}
+	default:
+		return nil, fberr.New("AddClient", "no cookies in SQLite and no cookies file for client id: "+clientID)
 	}
 	c := newClient(st, cfg)
 	c.managerID = clientID
@@ -190,25 +236,13 @@ func (m *Manager) AddClient(ctx context.Context, clientID, cookiesPath string, o
 	return c, nil
 }
 
-// RestoreClient loads a saved session snapshot when available, then registers the account.
-func (m *Manager) RestoreClient(ctx context.Context, clientID, cookiesPath string, opts ...Option) (*Client, error) {
-	if m.storage == nil {
-		return m.AddClient(ctx, clientID, cookiesPath, opts...)
+func (m *Manager) persistSession(ctx context.Context, clientID string, c *Client) {
+	if m.storage == nil || c == nil || c.state == nil {
+		return
 	}
-	snap, err := m.storage.Load(ctx, clientID)
-	if err != nil {
-		return nil, err
+	if err := m.storage.Save(ctx, clientID, c.state.Snapshot()); err != nil {
+		m.log.Error("failed to persist session", "client_id", clientID, "error", err)
 	}
-	if snap != nil {
-		if cookies, ok := snap["cookies"].([]any); ok && len(cookies) > 0 {
-			records := cookieRecordsFromSnap(cookies)
-			st, err := state.FromCookieRecords(ctx, records, state.Options{})
-			if err == nil {
-				opts = append(opts, WithInitialState(st))
-			}
-		}
-	}
-	return m.AddClient(ctx, clientID, cookiesPath, opts...)
 }
 
 // AddAccounts registers multiple accounts. Continues on individual failures and returns a joined error.

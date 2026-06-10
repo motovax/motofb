@@ -1,17 +1,18 @@
 // Multi-account echo bot — one process, many Facebook accounts.
 //
-// Configure accounts in accounts.json:
+// First-time setup (per account):
 //
-//	{
-//	  "accounts": [
-//	    {"id": "shop-a", "cookies": "cookies-a.json", "restore": true},
-//	    {"id": "shop-b", "cookies": "cookies-b.json", "restore": true}
-//	  ]
-//	}
+//	go run ./cmd/importcookies shop-a shop-a-cookies.json
+//
+// accounts.json (cookies live in sessions.db after import):
+//
+//	{"accounts": [{"id": "shop-a", "restore": true}]}
 //
 // Run:
 //
 //	go run ./cmd/multibot
+//
+// See docs/COOKIES.md for how to export cookies from the browser.
 package main
 
 import (

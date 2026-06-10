@@ -12,6 +12,7 @@ import (
 	_ "modernc.org/sqlite"
 )
 
+// sqliteSchema stores per-account cookie snapshots (JSON with version + cookies array).
 const sqliteSchema = `
 CREATE TABLE IF NOT EXISTS sessions (
 	client_id TEXT PRIMARY KEY,

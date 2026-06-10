@@ -54,8 +54,8 @@ func LoadAccountSpecs(path string) ([]AccountSpec, error) {
 		if a.ID == "" {
 			return nil, fberr.New("LoadAccountSpecs", fmt.Sprintf("accounts[%d]: missing id", i))
 		}
-		if a.CookiesPath == "" {
-			return nil, fberr.New("LoadAccountSpecs", fmt.Sprintf("accounts[%d]: missing cookies path", i))
+		if a.CookiesPath == "" && !a.Restore {
+			return nil, fberr.New("LoadAccountSpecs", fmt.Sprintf("accounts[%d]: set cookies path or restore:true with cookies in SQLite", i))
 		}
 	}
 	return file.Accounts, nil
