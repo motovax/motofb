@@ -97,9 +97,29 @@ func Login(ctx context.Context, jar http.CookieJar, opts Options) (*State, error
 		client.Jar = jar
 	}
 
-	host := "www.facebook.com"
-	pageURL := "https://www.facebook.com/"
+	targets := []struct {
+		host    string
+		pageURL string
+	}{
+		{"www.messenger.com", "https://www.messenger.com/"},
+		{"www.facebook.com", "https://www.facebook.com/"},
+		{"m.facebook.com", "https://m.facebook.com/"},
+	}
+	var lastErr error
+	for _, target := range targets {
+		st, err := loginOnce(ctx, client, jar, userID, ua, target.host, target.pageURL)
+		if err == nil {
+			return st, nil
+		}
+		lastErr = err
+	}
+	if lastErr == nil {
+		lastErr = fberr.Wrap("Login", "all login targets failed", fberr.ErrNetwork)
+	}
+	return nil, lastErr
+}
 
+func loginOnce(ctx context.Context, client *http.Client, jar http.CookieJar, userID, ua, host, pageURL string) (*State, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, pageURL, nil)
 	if err != nil {
 		return nil, fberr.Wrap("Login", "build request", err)
@@ -413,8 +433,13 @@ func setGETHeaders(req *http.Request, host, ua string) {
 	req.Header.Set("User-Agent", ua)
 	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
 	req.Header.Set("Accept-Language", "en-US,en;q=0.9")
-	req.Header.Set("Accept-Encoding", "gzip, deflate, br")
+	// net/http only auto-decodes gzip/deflate; requesting br can break login.
+	req.Header.Set("Accept-Encoding", "gzip, deflate")
 	req.Header.Set("Host", host)
 	req.Header.Set("Origin", base)
 	req.Header.Set("Referer", base+"/")
+	req.Header.Set("Sec-Fetch-Dest", "document")
+	req.Header.Set("Sec-Fetch-Mode", "navigate")
+	req.Header.Set("Sec-Fetch-Site", "none")
+	req.Header.Set("Upgrade-Insecure-Requests", "1")
 }

@@ -94,21 +94,58 @@ func parseThreadNode(t map[string]any) (Thread, error) {
 		}
 	}
 	return Thread{
-		Name:         strVal(t["name"]),
-		ThreadID:     threadID,
-		MessageCount: intVal(t["messages_count"]),
-		Image:        image,
-		ThreadType:   tt,
-		Folder:       folder,
-		ThreadAdmins: admins,
-		ApprovalMode: intVal(t["approval_mode"]),
-		JoinableMode: joinableMode,
-		JoinableLink: joinableLink,
-		PrivacyMode:  intVal(t["privacy_mode"]),
-		IsJoined:     boolVal(t["is_viewer_subscribed"]),
-		IsPinned:     boolVal(t["is_pinned"]),
-		Description:  strVal(t["description"]),
+		Name:            strVal(t["name"]),
+		ThreadID:        threadID,
+		MessageCount:    intVal(t["messages_count"]),
+		Image:           image,
+		ThreadType:      tt,
+		Folder:          folder,
+		AllParticipants: parseThreadParticipants(t),
+		ThreadAdmins:    admins,
+		ApprovalMode:    intVal(t["approval_mode"]),
+		JoinableMode:    joinableMode,
+		JoinableLink:    joinableLink,
+		PrivacyMode:     intVal(t["privacy_mode"]),
+		IsJoined:        boolVal(t["is_viewer_subscribed"]),
+		IsPinned:        boolVal(t["is_pinned"]),
+		Description:     strVal(t["description"]),
 	}, nil
+}
+
+func parseThreadParticipants(t map[string]any) []User {
+	raw, ok := t["all_participants"].(map[string]any)
+	if !ok {
+		return nil
+	}
+	nodes, ok := raw["nodes"].([]any)
+	if !ok {
+		return nil
+	}
+	out := make([]User, 0, len(nodes))
+	for _, item := range nodes {
+		node, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		messaging, _ := node["messaging_actor"].(map[string]any)
+		if messaging == nil {
+			messaging = node
+		}
+		id := strVal(messaging["id"])
+		if id == "" {
+			id = strVal(node["id"])
+		}
+		if id == "" {
+			continue
+		}
+		out = append(out, User{
+			ID:        id,
+			Name:      strVal(messaging["name"]),
+			FirstName: strVal(messaging["short_name"]),
+			Image:     strVal(messaging["big_image_src"]),
+		})
+	}
+	return out
 }
 
 // ParseUsersFromGraphQL extracts users from /chat/user_info responses.
