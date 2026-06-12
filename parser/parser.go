@@ -272,7 +272,7 @@ func (p *Parser) ParseMessageFromGraphQL(m map[string]any, threadID string, thre
 		MessageType:  messageTypeFromGraphQL(m),
 		Timestamp:    int64(toInt(m["timestamp_precise"])),
 		CanUnsend:    strings.EqualFold(strVal(m["message_unsendability_status"]), "can_unsend"),
-		Unsent:       strVal(m["unsent_timestamp_precise"]) == "0",
+		Unsent:       isUnsentGraphQLMessage(m),
 		Reactions:    reactions,
 		Mentions:     p.parseMentionsFromRanges(ranges),
 		ThreadFolder: models.ThreadFolderInbox,
@@ -854,6 +854,14 @@ func mapFirstKey(m map[string]any) string {
 		return k
 	}
 	return ""
+}
+
+// isUnsentGraphQLMessage reports whether the viewer unsent (deleted) the message.
+// Facebook uses unsent_timestamp_precise="0" for normal messages; a non-zero
+// timestamp means the message was unsent.
+func isUnsentGraphQLMessage(m map[string]any) bool {
+	ts := strings.TrimSpace(strVal(m["unsent_timestamp_precise"]))
+	return ts != "" && ts != "0"
 }
 
 func strVal(v any) string {
