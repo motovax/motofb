@@ -234,6 +234,12 @@ func (s *State) BuildHeaders(rawURL, requestType string, graphqlFriendlyName str
 	case "post":
 		h.Set("Accept", "*/*")
 		h.Set("Content-Type", "application/x-www-form-urlencoded")
+		h.Set("Sec-Ch-Ua", `"Google Chrome";v="137", "Chromium";v="137", "Not/A)Brand";v="24"`)
+		h.Set("Sec-Ch-Ua-Mobile", "?0")
+		h.Set("Sec-Ch-Ua-Platform", `"Windows"`)
+		h.Set("Sec-Fetch-Dest", "empty")
+		h.Set("Sec-Fetch-Mode", "cors")
+		h.Set("Sec-Fetch-Site", "same-origin")
 	case "upload":
 		h.Set("Accept", "*/*")
 	}
@@ -248,6 +254,8 @@ func (s *State) BuildHeaders(rawURL, requestType string, graphqlFriendlyName str
 	}
 	if graphqlFriendlyName != "" {
 		h.Set("X-Fb-Friendly-Name", graphqlFriendlyName)
+	}
+	if s.LSD != "" && (graphqlFriendlyName != "" || strings.Contains(rawURL, "/api/graphql")) {
 		h.Set("X-Fb-Lsd", s.LSD)
 	}
 	return h
@@ -384,6 +392,9 @@ func (s *State) GraphQLBatchNamed(ctx context.Context, batchName string, queries
 	}
 	if batchName != "" {
 		data["batch_name"] = batchName
+	}
+	if s.LSD != "" {
+		data["lsd"] = s.LSD
 	}
 	raw, err := s.Post(ctx, "https://www.facebook.com/api/graphqlbatch/", data, true)
 	if err != nil {
