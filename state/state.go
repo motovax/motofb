@@ -224,7 +224,6 @@ func (s *State) BuildHeaders(rawURL, requestType string, graphqlFriendlyName str
 	h := http.Header{}
 	h.Set("User-Agent", s.UserAgent)
 	h.Set("Accept-Language", "en-US,en;q=0.9")
-	h.Set("Accept-Encoding", "gzip, deflate, br")
 	h.Set("Host", host)
 	h.Set("Origin", base)
 	h.Set("Referer", base+"/")

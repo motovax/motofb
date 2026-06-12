@@ -73,7 +73,6 @@ func (c *Client) connect(ctx context.Context) error {
 			"Origin":          {"https://www.facebook.com"},
 			"User-Agent":      {c.st.UserAgent},
 			"Referer":         {"https://www.facebook.com"},
-			"Accept-Encoding": {"gzip, deflate, br"},
 			"Accept-Language": {"en-US,en;q=0.9"},
 		},
 	}
