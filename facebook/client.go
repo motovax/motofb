@@ -72,7 +72,8 @@ func New(st *state.State) *Client {
 	}
 }
 
-func (c *Client) nextMutationID() string {
+// GetMutationID returns the next client_mutation_id for GraphQL mutations.
+func (c *Client) GetMutationID() string {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	id := c.mutationID
@@ -102,7 +103,7 @@ func (c *Client) ManageFriendRequest(ctx context.Context, userID string, accept 
 			"friend_requester_id":           userID,
 			"friending_channel":             "FRIENDS_HOME_REQUESTS",
 			"actor_id":                      c.state.UserID,
-			"client_mutation_id":            c.nextMutationID(),
+			"client_mutation_id":            c.GetMutationID(),
 		},
 		"scale":       3,
 		"refresh_num": 0,
@@ -140,7 +141,7 @@ func (c *Client) SendFriendRequest(ctx context.Context, userIDs []string) error 
 			"friending_channel":             "FRIENDS_HOME_MAIN",
 			"warn_ack_for_ids":              []string{},
 			"actor_id":                      c.state.UserID,
-			"client_mutation_id":            c.nextMutationID(),
+			"client_mutation_id":            c.GetMutationID(),
 		},
 		"scale": 3,
 	}
@@ -163,7 +164,7 @@ func (c *Client) Unfriend(ctx context.Context, userID string) error {
 			"source":             "bd_profile_button",
 			"unfriended_user_id": userID,
 			"actor_id":           c.state.UserID,
-			"client_mutation_id": c.nextMutationID(),
+			"client_mutation_id": c.GetMutationID(),
 		},
 		"scale": 3,
 	}
@@ -189,7 +190,7 @@ func (c *Client) CancelFriendRequest(ctx context.Context, userID string) error {
 			"click_proof_validation_result": `{"validated":true}`,
 			"friending_channel":             "PROFILE_BUTTON",
 			"actor_id":                      c.state.UserID,
-			"client_mutation_id":            c.nextMutationID(),
+			"client_mutation_id":            c.GetMutationID(),
 		},
 		"scale": 3,
 	}
@@ -241,7 +242,7 @@ func (c *Client) ReactToPost(ctx context.Context, opts ReactToPostOptions) error
 			"tracking":              []any{},
 			"session_id":            internal.GenerateUUID(),
 			"actor_id":              c.state.UserID,
-			"client_mutation_id":    c.nextMutationID(),
+			"client_mutation_id":    c.GetMutationID(),
 		},
 		"useDefaultActor": false,
 		"__relay_internal__pv__CometUFIReactionsEnableShortNamerelayprovider": false,

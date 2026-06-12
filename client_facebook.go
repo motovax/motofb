@@ -51,3 +51,8 @@ func (c *Client) UploadPhotos(ctx context.Context, paths []string, maxConcurrent
 func (c *Client) ReactToPostSimple(ctx context.Context, postID int64, reaction models.FBReaction) error {
 	return c.facebook.ReactToPost(ctx, facebook.ReactToPostOptions{PostID: &postID, Reaction: reaction})
 }
+
+// GetMutationID returns the next client_mutation_id for GraphQL mutations.
+func (c *Client) GetMutationID() string {
+	return c.facebook.GetMutationID()
+}
