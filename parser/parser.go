@@ -252,11 +252,21 @@ func (p *Parser) ParseMessageFromGraphQL(m map[string]any, threadID string, thre
 			attachments = []models.Attachment{*att}
 		}
 	}
+	text := strVal(msgObj["text"])
+	if text == "" {
+		text = strVal(m["snippet"])
+	}
+	senderID := strVal(sender["id"])
+	if senderID == "" {
+		if actor, _ := sender["messaging_actor"].(map[string]any); actor != nil {
+			senderID = strVal(actor["id"])
+		}
+	}
 	ranges, _ := msgObj["ranges"].([]any)
 	return models.Message{
 		ID:           strVal(m["message_id"]),
-		Text:         strVal(msgObj["text"]),
-		SenderID:     strVal(sender["id"]),
+		Text:         text,
+		SenderID:     senderID,
 		ThreadID:     threadID,
 		ThreadType:   threadType,
 		MessageType:  messageTypeFromGraphQL(m),

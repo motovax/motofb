@@ -117,10 +117,26 @@ func parseThreadParticipants(t map[string]any) []User {
 	if !ok {
 		return nil
 	}
-	nodes, ok := raw["nodes"].([]any)
-	if !ok {
-		return nil
+	if nodes, ok := raw["nodes"].([]any); ok {
+		return parseParticipantNodes(nodes)
 	}
+	if edges, ok := raw["edges"].([]any); ok {
+		nodes := make([]any, 0, len(edges))
+		for _, item := range edges {
+			edge, ok := item.(map[string]any)
+			if !ok {
+				continue
+			}
+			if node, ok := edge["node"].(map[string]any); ok {
+				nodes = append(nodes, node)
+			}
+		}
+		return parseParticipantNodes(nodes)
+	}
+	return nil
+}
+
+func parseParticipantNodes(nodes []any) []User {
 	out := make([]User, 0, len(nodes))
 	for _, item := range nodes {
 		node, ok := item.(map[string]any)
@@ -138,11 +154,15 @@ func parseThreadParticipants(t map[string]any) []User {
 		if id == "" {
 			continue
 		}
+		image := strVal(messaging["big_image_src"])
+		if img, ok := messaging["big_image_src"].(map[string]any); ok {
+			image = strVal(img["uri"])
+		}
 		out = append(out, User{
 			ID:        id,
 			Name:      strVal(messaging["name"]),
 			FirstName: strVal(messaging["short_name"]),
-			Image:     strVal(messaging["big_image_src"]),
+			Image:     image,
 		})
 	}
 	return out
