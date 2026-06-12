@@ -101,8 +101,8 @@ func Login(ctx context.Context, jar http.CookieJar, opts Options) (*State, error
 		host    string
 		pageURL string
 	}{
-		{"www.messenger.com", "https://www.messenger.com/"},
 		{"www.facebook.com", "https://www.facebook.com/"},
+		{"www.messenger.com", "https://www.messenger.com/"},
 		{"m.facebook.com", "https://m.facebook.com/"},
 	}
 	var lastErr error
@@ -433,13 +433,18 @@ func setGETHeaders(req *http.Request, host, ua string) {
 	req.Header.Set("User-Agent", ua)
 	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
 	req.Header.Set("Accept-Language", "en-US,en;q=0.9")
-	// net/http only auto-decodes gzip/deflate; requesting br can break login.
-	req.Header.Set("Accept-Encoding", "gzip, deflate")
+	// Do not set Accept-Encoding here. net/http adds gzip and transparently
+	// decompresses the body; a manual Accept-Encoding skips that and login HTML
+	// parsing sees raw gzip bytes (fb_dtsg token not found).
 	req.Header.Set("Host", host)
 	req.Header.Set("Origin", base)
 	req.Header.Set("Referer", base+"/")
+	req.Header.Set("Sec-Ch-Ua", `"Google Chrome";v="137", "Chromium";v="137", "Not/A)Brand";v="24"`)
+	req.Header.Set("Sec-Ch-Ua-Mobile", "?0")
+	req.Header.Set("Sec-Ch-Ua-Platform", `"Windows"`)
 	req.Header.Set("Sec-Fetch-Dest", "document")
 	req.Header.Set("Sec-Fetch-Mode", "navigate")
 	req.Header.Set("Sec-Fetch-Site", "none")
+	req.Header.Set("Sec-Fetch-User", "?1")
 	req.Header.Set("Upgrade-Insecure-Requests", "1")
 }
